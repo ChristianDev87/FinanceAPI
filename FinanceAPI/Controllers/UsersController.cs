@@ -25,43 +25,43 @@ public class UsersController : ControllerBase
         return Ok(await _userService.GetAllAsync());
     }
 
-    [HttpGet("{id:int}")]
-    public async Task<ActionResult<UserDto>> GetById(int id)
+    [HttpGet("{userId:int}")]
+    public async Task<ActionResult<UserDto>> GetById(int userId)
     {
-        return Ok(await _userService.GetByIdAsync(id));
+        return Ok(await _userService.GetByIdAsync(userId));
     }
 
-    [HttpPut("{id:int}")]
-    public async Task<ActionResult<UserDto>> Update(int id, [FromBody] UpdateUserRequest request)
+    [HttpPut("{userId:int}")]
+    public async Task<ActionResult<UserDto>> Update(int userId, [FromBody] UpdateUserRequest request)
     {
-        return Ok(await _userService.UpdateAsync(id, request));
+        return Ok(await _userService.UpdateAsync(userId, request));
     }
 
-    [HttpDelete("{id:int}")]
-    public async Task<IActionResult> Delete(int id)
+    [HttpDelete("{userId:int}")]
+    public async Task<IActionResult> Delete(int userId)
     {
-        await _userService.DeleteAsync(id);
+        await _userService.DeleteAsync(userId);
         return NoContent();
     }
 
-    [HttpPost("{id:int}/apikeys")]
-    public async Task<ActionResult<ApiKeyCreatedResponse>> CreateApiKey(int id, [FromBody] CreateApiKeyRequest request)
+    [HttpPost("{userId:int}/apikeys")]
+    public async Task<ActionResult<ApiKeyCreatedResponse>> CreateApiKey(int userId, [FromBody] CreateApiKeyRequest request)
     {
         var adminId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-        var result = await _userService.CreateApiKeyAsync(id, request.Name, adminId);
+        var result = await _userService.CreateApiKeyAsync(userId, request.Name, adminId);
         return Ok(result);
     }
 
-    [HttpGet("{id:int}/apikeys")]
-    public async Task<ActionResult<IEnumerable<ApiKeyDto>>> GetApiKeys(int id)
+    [HttpGet("{userId:int}/apikeys")]
+    public async Task<ActionResult<IEnumerable<ApiKeyDto>>> GetApiKeys(int userId)
     {
-        return Ok(await _userService.GetApiKeysAsync(id));
+        return Ok(await _userService.GetApiKeysAsync(userId));
     }
 
-    [HttpDelete("{id:int}/apikeys/{keyId:int}")]
-    public async Task<IActionResult> RevokeApiKey(int id, int keyId)
+    [HttpDelete("{userId:int}/apikeys/{keyId:int}")]
+    public async Task<IActionResult> RevokeApiKey(int userId, int keyId)
     {
-        await _userService.RevokeApiKeyAsync(id, keyId);
+        await _userService.RevokeApiKeyAsync(userId, keyId);
         return NoContent();
     }
 }
