@@ -30,7 +30,7 @@ A multi-user finance tracking REST API built with .NET 10, Dapper and SQLite.
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/your-username/FinanceAPI.git
+git clone https://github.com/ChristianDev87/FinanceAPI.git
 cd FinanceAPI/FinanceAPI
 
 # 2. Create your local config from the example
