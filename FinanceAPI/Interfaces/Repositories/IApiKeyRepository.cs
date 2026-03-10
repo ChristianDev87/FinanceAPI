@@ -9,4 +9,5 @@ public interface IApiKeyRepository
     Task<ApiKey?> GetByIdAsync(int id);
     Task<int> CreateAsync(ApiKey apiKey);
     Task DeactivateAsync(int id);
+    Task DeactivateAllForUserAsync(int userId);
 }

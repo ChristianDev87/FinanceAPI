@@ -6,3 +6,4 @@
 /FinanceAPI/appsettings.json
 /FinanceAPI/appsettings.Development.json
 /Frontend
+*.dotsettings.user

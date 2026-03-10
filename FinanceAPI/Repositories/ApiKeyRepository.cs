@@ -52,4 +52,12 @@ public class ApiKeyRepository : IApiKeyRepository
         await conn.ExecuteAsync(
             "UPDATE ApiKeys SET IsActive = 0 WHERE Id = @Id", new { Id = id });
     }
+
+    public async Task DeactivateAllForUserAsync(int userId)
+    {
+        using var conn = _connectionFactory.CreateConnection();
+        await conn.ExecuteAsync(
+            "UPDATE ApiKeys SET IsActive = 0 WHERE UserId = @UserId AND IsActive = 1",
+            new { UserId = userId });
+    }
 }

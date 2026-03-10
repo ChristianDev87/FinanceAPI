@@ -65,6 +65,8 @@ public class UserService : IUserService
         _ = await _userRepo.GetByIdAsync(userId)
             ?? throw new KeyNotFoundException($"User {userId} not found.");
 
+        await _apiKeyRepo.DeactivateAllForUserAsync(userId);
+
         var rawBytes = RandomNumberGenerator.GetBytes(32);
         var rawKey = Convert.ToBase64String(rawBytes)
             .Replace('+', '-').Replace('/', '_').TrimEnd('=');
