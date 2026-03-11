@@ -42,7 +42,22 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 // ── Database ────────────────────────────────────────────────────
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")!;
+// Resolve relative SQLite paths against ContentRootPath so the location is
+// consistent regardless of working directory (dev, published, Docker, …)
+var rawConnStr = builder.Configuration.GetConnectionString("DefaultConnection")!;
+var dataSource = rawConnStr.Split(';')
+    .Select(p => p.Trim())
+    .FirstOrDefault(p => p.StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase))
+    ?.Substring("Data Source=".Length);
+
+var connectionString = rawConnStr;
+if (dataSource is not null && !Path.IsPathRooted(dataSource))
+{
+    var fullPath = Path.GetFullPath(dataSource, builder.Environment.ContentRootPath);
+    Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+    connectionString = $"Data Source={fullPath}";
+}
+
 builder.Services.AddSingleton<IDbConnectionFactory>(_ => new SqliteConnectionFactory(connectionString));
 builder.Services.AddSingleton<DatabaseInitializer>();
 

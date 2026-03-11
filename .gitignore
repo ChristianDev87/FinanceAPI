@@ -1,6 +1,6 @@
 ﻿/.git
 /.idea
-/FinanceAPI/finance.db
+/FinanceAPI/data/
 /FinanceAPI/bin
 /FinanceAPI/obj
 /FinanceAPI/appsettings.json
