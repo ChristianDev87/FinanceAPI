@@ -7,3 +7,5 @@
 /FinanceAPI/appsettings.Development.json
 /Frontend
 *.dotsettings.user
+/FinanceAPI.Tests/obj
+/FinanceAPI.Tests/bin
