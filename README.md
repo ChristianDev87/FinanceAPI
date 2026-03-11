@@ -127,8 +127,9 @@ All protected routes require either `Authorization: Bearer <jwt>` or `?apiKey=<k
 
 | Method | Route | Description |
 |--------|-------|-------------|
-| GET | `/api/statistics/monthly?year={y}` | Income and expense totals per month |
-| GET | `/api/statistics/categories?month={m}&year={y}&type={t}` | Totals grouped by category |
+| GET | `/api/statistics/years` | List of years that have transactions |
+| GET | `/api/statistics/monthly?year={y}` | Income and expense totals per month (`year` optional, defaults to current year) |
+| GET | `/api/statistics/categories?month={m}&year={y}&type={t}` | Totals grouped by category (all params optional, default to current month/year) |
 
 ## Authentication
 
@@ -157,7 +158,7 @@ Only the SHA-256 hash of the key is stored in the database. Creating a new key a
 | Role | How assigned | Access |
 |------|-------------|--------|
 | `User` | Default on registration | Own profile, categories, transactions, statistics, API keys |
-| `Admin` | Admin via `PUT /api/users/{id}` | Everything above + full user management |
+| `Admin` | Automatically assigned to the first registered user; afterwards assignable by an existing Admin via `PUT /api/users/{id}` | Everything above + full user management |
 
 > Role and lock-status changes take effect immediately for API key auth.
 > For JWT, the token remains valid until it expires. Users with a locked account cannot log in and receive no new tokens.
