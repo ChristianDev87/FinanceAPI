@@ -24,18 +24,22 @@ public class AuthService : IAuthService
 
     public async Task<AuthResponse> RegisterAsync(RegisterRequest request)
     {
+        String role = "User"; //default role
         if (await _userRepo.GetByUsernameAsync(request.Username) is not null)
-            throw new ArgumentException("Username already taken.");
+            throw new ArgumentException("Username ist bereits vergeben.");
 
         if (await _userRepo.GetByEmailAsync(request.Email) is not null)
-            throw new ArgumentException("Email already in use.");
+            throw new ArgumentException("Email ist bereits registiert.");
 
+        if (_userRepo.GetAllAsync().Result.Count() is 0) //Make sure the first user will registered as admin.
+            role = "Admin";
+        
         var user = new User
         {
-            Username = request.Username,
+            Username = string.Concat(request.Username[0].ToString().ToUpper(), request.Username.AsSpan(1)), //First letter uppercase for username
             Email = request.Email,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password, workFactor: 12),
-            RoleName = "User"
+            RoleName = role
         };
 
         var userId = await _userRepo.CreateAsync(user);
@@ -72,10 +76,10 @@ public class AuthService : IAuthService
     public async Task<AuthResponse> LoginAsync(LoginRequest request)
     {
         var user = await _userRepo.GetByUsernameAsync(request.Username)
-                   ?? throw new KeyNotFoundException("Invalid username or password.");
+                   ?? throw new KeyNotFoundException("Username/Passwort ungültig.");
 
         if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
-            throw new KeyNotFoundException("Invalid username or password.");
+            throw new KeyNotFoundException("Username/Passwort ungültig.");
 
         if (!user.IsActive)
             throw new UnauthorizedAccessException("Dieses Konto wurde gesperrt.");
