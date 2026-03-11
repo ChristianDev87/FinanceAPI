@@ -42,23 +42,50 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 // ── Database ────────────────────────────────────────────────────
-// Resolve relative SQLite paths against ContentRootPath so the location is
-// consistent regardless of working directory (dev, published, Docker, …)
-var rawConnStr = builder.Configuration.GetConnectionString("DefaultConnection")!;
-var dataSource = rawConnStr.Split(';')
-    .Select(p => p.Trim())
-    .FirstOrDefault(p => p.StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase))
-    ?.Substring("Data Source=".Length);
+var provider = builder.Configuration["DatabaseSettings:Provider"] ?? "sqlite";
 
-var connectionString = rawConnStr;
-if (dataSource is not null && !Path.IsPathRooted(dataSource))
+IDbConnectionFactory dbFactory;
+ISqlDialect dialect;
+
+switch (provider.ToLowerInvariant())
 {
-    var fullPath = Path.GetFullPath(dataSource, builder.Environment.ContentRootPath);
-    Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
-    connectionString = $"Data Source={fullPath}";
+    case "postgresql":
+    case "postgres":
+        dbFactory = new PostgreSqlConnectionFactory(
+            builder.Configuration.GetConnectionString("DefaultConnection")!);
+        dialect = new PostgreSqlDialect();
+        break;
+
+    case "mysql":
+        dbFactory = new MySqlConnectionFactory(
+            builder.Configuration.GetConnectionString("DefaultConnection")!);
+        dialect = new MySqlDialect();
+        break;
+
+    default: // sqlite
+        // Resolve relative paths against ContentRootPath so the location is
+        // consistent regardless of working directory (dev, published, Docker, …)
+        var rawConnStr = builder.Configuration.GetConnectionString("DefaultConnection")!;
+        var dataSource = rawConnStr.Split(';')
+            .Select(p => p.Trim())
+            .FirstOrDefault(p => p.StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase))
+            ?.Substring("Data Source=".Length);
+
+        var connectionString = rawConnStr;
+        if (dataSource is not null && !Path.IsPathRooted(dataSource))
+        {
+            var fullPath = Path.GetFullPath(dataSource, builder.Environment.ContentRootPath);
+            Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+            connectionString = $"Data Source={fullPath}";
+        }
+
+        dbFactory = new SqliteConnectionFactory(connectionString);
+        dialect = new SqliteDialect();
+        break;
 }
 
-builder.Services.AddSingleton<IDbConnectionFactory>(_ => new SqliteConnectionFactory(connectionString));
+builder.Services.AddSingleton<IDbConnectionFactory>(_ => dbFactory);
+builder.Services.AddSingleton<ISqlDialect>(_ => dialect);
 builder.Services.AddSingleton<DatabaseInitializer>();
 
 // ── Repositories ────────────────────────────────────────────────

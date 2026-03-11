@@ -10,11 +10,19 @@
         <None Update="Database\schema.sql">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
+        <None Update="Database\schema.postgresql.sql">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Update="Database\schema.mysql.sql">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
     </ItemGroup>
 
     <ItemGroup>
         <PackageReference Include="Dapper" Version="2.1.66"/>
         <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.3"/>
+        <PackageReference Include="Npgsql" Version="9.0.3"/>
+        <PackageReference Include="MySqlConnector" Version="2.4.0"/>
         <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.3"/>
         <PackageReference Include="BCrypt.Net-Next" Version="4.0.3"/>
         <PackageReference Include="Swashbuckle.AspNetCore" Version="7.3.1"/>

@@ -8,10 +8,12 @@ namespace FinanceAPI.Repositories;
 public class TransactionRepository : ITransactionRepository
 {
     private readonly IDbConnectionFactory _connectionFactory;
+    private readonly ISqlDialect _dialect;
 
-    public TransactionRepository(IDbConnectionFactory connectionFactory)
+    public TransactionRepository(IDbConnectionFactory connectionFactory, ISqlDialect dialect)
     {
         _connectionFactory = connectionFactory;
+        _dialect = dialect;
     }
 
     public async Task<Transaction?> GetByIdAsync(int id)
@@ -32,12 +34,12 @@ public class TransactionRepository : ITransactionRepository
 
         if (month.HasValue)
         {
-            sql += " AND CAST(strftime('%m', Date) AS INTEGER) = @Month";
+            sql += $" AND {_dialect.Month("Date")} = @Month";
             parameters.Add("Month", month.Value);
         }
         if (year.HasValue)
         {
-            sql += " AND CAST(strftime('%Y', Date) AS INTEGER) = @Year";
+            sql += $" AND {_dialect.Year("Date")} = @Year";
             parameters.Add("Year", year.Value);
         }
         if (categoryId.HasValue)
@@ -58,12 +60,9 @@ public class TransactionRepository : ITransactionRepository
     public async Task<int> CreateAsync(Transaction transaction)
     {
         using var conn = _connectionFactory.CreateConnection();
-        return await conn.QuerySingleAsync<int>(
-            """
-            INSERT INTO Transactions (UserId, Amount, Type, CategoryId, Date, Description)
-            VALUES (@UserId, @Amount, @Type, @CategoryId, @Date, @Description);
-            SELECT last_insert_rowid();
-            """, transaction);
+        return await _dialect.InsertAsync(conn,
+            "INSERT INTO Transactions (UserId, Amount, Type, CategoryId, Date, Description) VALUES (@UserId, @Amount, @Type, @CategoryId, @Date, @Description)",
+            transaction);
     }
 
     public async Task UpdateAsync(Transaction transaction)

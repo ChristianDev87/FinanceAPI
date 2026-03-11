@@ -8,10 +8,12 @@ namespace FinanceAPI.Repositories;
 public class UserRepository : IUserRepository
 {
     private readonly IDbConnectionFactory _connectionFactory;
+    private readonly ISqlDialect _dialect;
 
-    public UserRepository(IDbConnectionFactory connectionFactory)
+    public UserRepository(IDbConnectionFactory connectionFactory, ISqlDialect dialect)
     {
         _connectionFactory = connectionFactory;
+        _dialect = dialect;
     }
 
     public async Task<User?> GetByIdAsync(int id)
@@ -25,14 +27,16 @@ public class UserRepository : IUserRepository
     {
         using var conn = _connectionFactory.CreateConnection();
         return await conn.QuerySingleOrDefaultAsync<User>(
-            "SELECT * FROM Users WHERE Username = @Username COLLATE NOCASE", new { Username = username });
+            $"SELECT * FROM Users WHERE {_dialect.CaseInsensitiveEqual("Username", "@Username")}",
+            new { Username = username });
     }
 
     public async Task<User?> GetByEmailAsync(string email)
     {
         using var conn = _connectionFactory.CreateConnection();
         return await conn.QuerySingleOrDefaultAsync<User>(
-            "SELECT * FROM Users WHERE Email = @Email COLLATE NOCASE", new { Email = email });
+            $"SELECT * FROM Users WHERE {_dialect.CaseInsensitiveEqual("Email", "@Email")}",
+            new { Email = email });
     }
 
     public async Task<IEnumerable<User>> GetAllAsync()
@@ -44,12 +48,9 @@ public class UserRepository : IUserRepository
     public async Task<int> CreateAsync(User user)
     {
         using var conn = _connectionFactory.CreateConnection();
-        return await conn.QuerySingleAsync<int>(
-            """
-            INSERT INTO Users (Username, Email, PasswordHash, RoleName)
-            VALUES (@Username, @Email, @PasswordHash, @RoleName);
-            SELECT last_insert_rowid();
-            """, user);
+        return await _dialect.InsertAsync(conn,
+            "INSERT INTO Users (Username, Email, PasswordHash, RoleName) VALUES (@Username, @Email, @PasswordHash, @RoleName)",
+            user);
     }
 
     public async Task UpdateAsync(User user)
@@ -73,7 +74,7 @@ public class UserRepository : IUserRepository
         using var conn = _connectionFactory.CreateConnection();
         await conn.ExecuteAsync(
             "UPDATE Users SET IsActive = @IsActive WHERE Id = @Id",
-            new { Id = id, IsActive = isActive ? 1 : 0 });
+            new { Id = id, IsActive = isActive });
     }
 
     public async Task DeleteAsync(int id)

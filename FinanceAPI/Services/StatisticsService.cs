@@ -8,18 +8,20 @@ namespace FinanceAPI.Services;
 public class StatisticsService : IStatisticsService
 {
     private readonly IDbConnectionFactory _connectionFactory;
+    private readonly ISqlDialect _dialect;
 
-    public StatisticsService(IDbConnectionFactory connectionFactory)
+    public StatisticsService(IDbConnectionFactory connectionFactory, ISqlDialect dialect)
     {
         _connectionFactory = connectionFactory;
+        _dialect = dialect;
     }
 
     public async Task<IEnumerable<int>> GetAvailableYearsAsync(int userId)
     {
         using var conn = _connectionFactory.CreateConnection();
         return await conn.QueryAsync<int>(
-            """
-            SELECT DISTINCT CAST(strftime('%Y', Date) AS INTEGER) AS Year
+            $"""
+            SELECT DISTINCT {_dialect.Year("Date")} AS Year
             FROM Transactions
             WHERE UserId = @UserId
             ORDER BY Year DESC
@@ -32,14 +34,14 @@ public class StatisticsService : IStatisticsService
         using var conn = _connectionFactory.CreateConnection();
 
         var rows = await conn.QueryAsync<(int Month, string Type, decimal Total)>(
-            """
+            $"""
             SELECT
-                CAST(strftime('%m', Date) AS INTEGER) AS Month,
+                {_dialect.Month("Date")} AS Month,
                 Type,
                 SUM(Amount) AS Total
             FROM Transactions
             WHERE UserId = @UserId
-              AND CAST(strftime('%Y', Date) AS INTEGER) = @Year
+              AND {_dialect.Year("Date")} = @Year
             GROUP BY Month, Type
             ORDER BY Month
             """,
@@ -68,7 +70,7 @@ public class StatisticsService : IStatisticsService
     {
         using var conn = _connectionFactory.CreateConnection();
 
-        var sql = """
+        var sql = $"""
             SELECT
                 t.CategoryId,
                 COALESCE(c.Name, 'Uncategorized') AS CategoryName,
@@ -79,8 +81,8 @@ public class StatisticsService : IStatisticsService
             FROM Transactions t
             LEFT JOIN Categories c ON t.CategoryId = c.Id
             WHERE t.UserId = @UserId
-              AND CAST(strftime('%m', t.Date) AS INTEGER) = @Month
-              AND CAST(strftime('%Y', t.Date) AS INTEGER) = @Year
+              AND {_dialect.Month("t.Date")} = @Month
+              AND {_dialect.Year("t.Date")} = @Year
             """;
 
         var parameters = new DynamicParameters();

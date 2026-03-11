@@ -8,10 +8,12 @@ namespace FinanceAPI.Repositories;
 public class CategoryRepository : ICategoryRepository
 {
     private readonly IDbConnectionFactory _connectionFactory;
+    private readonly ISqlDialect _dialect;
 
-    public CategoryRepository(IDbConnectionFactory connectionFactory)
+    public CategoryRepository(IDbConnectionFactory connectionFactory, ISqlDialect dialect)
     {
         _connectionFactory = connectionFactory;
+        _dialect = dialect;
     }
 
     public async Task<IEnumerable<Category>> GetByUserIdAsync(int userId)
@@ -32,12 +34,9 @@ public class CategoryRepository : ICategoryRepository
     public async Task<int> CreateAsync(Category category)
     {
         using var conn = _connectionFactory.CreateConnection();
-        return await conn.QuerySingleAsync<int>(
-            """
-            INSERT INTO Categories (UserId, Name, Color, Type, SortOrder)
-            VALUES (@UserId, @Name, @Color, @Type, @SortOrder);
-            SELECT last_insert_rowid();
-            """, category);
+        return await _dialect.InsertAsync(conn,
+            "INSERT INTO Categories (UserId, Name, Color, Type, SortOrder) VALUES (@UserId, @Name, @Color, @Type, @SortOrder)",
+            category);
     }
 
     public async Task UpdateAsync(Category category)
