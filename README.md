@@ -1,6 +1,6 @@
 # FinanceAPI
 
-A multi-user personal finance REST API built with .NET 10, Dapper and SQLite.
+A multi-user personal finance REST API built with .NET 10, Dapper and SQLite, PostgreSQL or MySQL.
 
 ## Features
 
@@ -19,7 +19,7 @@ A multi-user personal finance REST API built with .NET 10, Dapper and SQLite.
 | Component | Technology |
 |-----------|-----------|
 | Runtime | .NET 10, ASP.NET Core Web API |
-| Data access | Dapper + SQLite (`Microsoft.Data.Sqlite`) |
+| Data access | Dapper + SQLite / PostgreSQL / MySQL |
 | Password hashing | BCrypt.Net-Next (work factor 12) |
 | Authentication | JWT Bearer + SHA-256 API keys |
 | API docs | Swashbuckle / OpenAPI |
@@ -55,7 +55,8 @@ https://localhost:7185/swagger
 |-----|-------------|
 | `Kestrel.Endpoints.Http.Url` | HTTP listen address (default `http://localhost:5281`) |
 | `Kestrel.Endpoints.Https.Url` | HTTPS listen address (default `https://localhost:7185`) |
-| `ConnectionStrings.DefaultConnection` | SQLite connection string (default `Data Source=finance.db`) |
+| `DatabaseSettings.Provider` | Database provider: `sqlite` (default), `postgresql`, `mysql` |
+| `ConnectionStrings.DefaultConnection` | Connection string for the selected provider |
 | `JwtSettings.SecretKey` | **Required.** At least 32 characters, keep secret |
 | `JwtSettings.Issuer` | JWT issuer claim |
 | `JwtSettings.Audience` | JWT audience claim |
@@ -167,8 +168,10 @@ Only the SHA-256 hash of the key is stored in the database. Creating a new key a
 FinanceAPI/
 ├── Controllers/        AuthController, ProfileController, UsersController,
 │                       CategoriesController, TransactionsController, StatisticsController
-├── Database/           IDbConnectionFactory, SqliteConnectionFactory,
-│                       DatabaseInitializer, schema.sql
+├── Database/           IDbConnectionFactory, ISqlDialect,
+│                       SqliteConnectionFactory, PostgreSqlConnectionFactory, MySqlConnectionFactory,
+│                       SqliteDialect, PostgreSqlDialect, MySqlDialect,
+│                       DatabaseInitializer, schema.sql, schema.postgresql.sql, schema.mysql.sql
 ├── DTOs/               Auth/, Users/, ApiKeys/, Categories/,
 │                       Transactions/, Statistics/, Profile/
 ├── Interfaces/
@@ -201,20 +204,38 @@ All errors are returned as JSON by `ErrorHandlingMiddleware`:
 
 ## Database
 
-SQLite is used by default. The schema (`Database/schema.sql`) is executed on every startup. `CREATE TABLE IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS` statements are idempotent. `ALTER TABLE ... ADD COLUMN` migrations are silently skipped if the column already exists.
+The database provider is selected via `DatabaseSettings:Provider` in `appsettings.json`. The matching schema file is applied automatically on every startup — no manual migration needed.
 
-### Switching to PostgreSQL
+| Provider value | Database | Schema file |
+|---|---|---|
+| `sqlite` (default) | SQLite | `Database/schema.sql` |
+| `postgresql` / `postgres` | PostgreSQL 13+ | `Database/schema.postgresql.sql` |
+| `mysql` | MySQL 8.0.13+ / MariaDB 10.6+ | `Database/schema.mysql.sql` |
 
-1. Implement `IDbConnectionFactory` using `Npgsql`
-2. Replace the following SQLite-specific expressions in `schema.sql` and repositories:
+### SQLite (default)
 
-| SQLite | PostgreSQL |
-|--------|-----------|
-| `INTEGER PRIMARY KEY AUTOINCREMENT` | `SERIAL PRIMARY KEY` |
-| `last_insert_rowid()` | `RETURNING Id` |
-| `strftime('%m', Date)` | `EXTRACT(MONTH FROM Date::date)::int` |
-| `strftime('%Y', Date)` | `EXTRACT(YEAR FROM Date::date)::int` |
-| `datetime('now')` | `NOW()` |
+```json
+"DatabaseSettings": { "Provider": "sqlite" },
+"ConnectionStrings": { "DefaultConnection": "Data Source=data/finance.db" }
+```
+
+The database file is created automatically in the `data/` subfolder relative to the application root. No external server required.
+
+### PostgreSQL
+
+```json
+"DatabaseSettings": { "Provider": "postgresql" },
+"ConnectionStrings": { "DefaultConnection": "Host=localhost;Port=5432;Database=financedb;Username=finance_user;Password=CHANGE-ME" }
+```
+
+### MySQL / MariaDB
+
+```json
+"DatabaseSettings": { "Provider": "mysql" },
+"ConnectionStrings": { "DefaultConnection": "Server=localhost;Port=3306;Database=financedb;User=finance_user;Password=CHANGE-ME" }
+```
+
+`CREATE TABLE IF NOT EXISTS` statements are idempotent. `CREATE INDEX` failures on subsequent startups are silently skipped. `ALTER TABLE ... ADD COLUMN` migrations (SQLite) are silently skipped if the column already exists.
 
 ## License
 
