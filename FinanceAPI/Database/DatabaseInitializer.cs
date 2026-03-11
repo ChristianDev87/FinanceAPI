@@ -29,8 +29,16 @@ public class DatabaseInitializer
         var statements = schema.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         foreach (var statement in statements)
         {
-            if (!string.IsNullOrWhiteSpace(statement))
+            if (string.IsNullOrWhiteSpace(statement)) continue;
+            try
+            {
                 await connection.ExecuteAsync(statement);
+            }
+            catch (Exception ex) when (statement.Contains("ADD COLUMN", StringComparison.OrdinalIgnoreCase))
+            {
+                // Column likely already exists — safe to ignore on subsequent startups
+                _logger.LogDebug("ADD COLUMN skipped (column may already exist): {Message}", ex.Message);
+            }
         }
 
         _logger.LogInformation("Database initialized.");

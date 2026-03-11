@@ -48,3 +48,6 @@ CREATE TABLE IF NOT EXISTS Transactions (
 CREATE INDEX IF NOT EXISTS idx_transactions_user_date ON Transactions(UserId, Date);
 CREATE INDEX IF NOT EXISTS idx_categories_user        ON Categories(UserId);
 CREATE INDEX IF NOT EXISTS idx_apikeys_hash           ON ApiKeys(KeyHash);
+
+-- Migration: add IsActive column to Users (ignored if already exists)
+ALTER TABLE Users ADD COLUMN IsActive INTEGER NOT NULL DEFAULT 1;

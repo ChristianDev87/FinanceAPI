@@ -9,7 +9,8 @@ public interface IUserService
     Task<UserDto> GetByIdAsync(int id);
     Task<UserDto> UpdateAsync(int id, UpdateUserRequest request);
     Task DeleteAsync(int id);
-    Task<ApiKeyCreatedResponse> CreateApiKeyAsync(int userId, string keyName, int adminId);
+    Task SetActiveAsync(int id, bool isActive);
+    Task<ApiKeyCreatedResponse> CreateApiKeyAsync(int userId, string keyName, int? createdByAdminId = null);
     Task<IEnumerable<ApiKeyDto>> GetApiKeysAsync(int userId);
     Task RevokeApiKeyAsync(int userId, int keyId);
 }

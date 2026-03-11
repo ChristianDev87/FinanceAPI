@@ -77,6 +77,9 @@ public class AuthService : IAuthService
         if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
             throw new KeyNotFoundException("Invalid username or password.");
 
+        if (!user.IsActive)
+            throw new UnauthorizedAccessException("Dieses Konto wurde gesperrt.");
+
         return new AuthResponse
         {
             Token = GenerateToken(user),
