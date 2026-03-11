@@ -14,6 +14,19 @@ public class StatisticsService : IStatisticsService
         _connectionFactory = connectionFactory;
     }
 
+    public async Task<IEnumerable<int>> GetAvailableYearsAsync(int userId)
+    {
+        using var conn = _connectionFactory.CreateConnection();
+        return await conn.QueryAsync<int>(
+            """
+            SELECT DISTINCT CAST(strftime('%Y', Date) AS INTEGER) AS Year
+            FROM Transactions
+            WHERE UserId = @UserId
+            ORDER BY Year DESC
+            """,
+            new { UserId = userId });
+    }
+
     public async Task<IEnumerable<MonthlyStatDto>> GetMonthlyAsync(int userId, int year)
     {
         using var conn = _connectionFactory.CreateConnection();

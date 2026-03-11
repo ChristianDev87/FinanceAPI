@@ -20,6 +20,12 @@ public class StatisticsController : ControllerBase
 
     private int UserId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
+    [HttpGet("years")]
+    public async Task<ActionResult<IEnumerable<int>>> GetAvailableYears()
+    {
+        return Ok(await _statisticsService.GetAvailableYearsAsync(UserId));
+    }
+
     [HttpGet("monthly")]
     public async Task<ActionResult<IEnumerable<MonthlyStatDto>>> GetMonthly(
         [FromQuery] int year = 0)

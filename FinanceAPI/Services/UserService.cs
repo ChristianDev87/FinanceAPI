@@ -60,7 +60,14 @@ public class UserService : IUserService
         await _userRepo.DeleteAsync(user.Id);
     }
 
-    public async Task<ApiKeyCreatedResponse> CreateApiKeyAsync(int userId, string keyName, int adminId)
+    public async Task SetActiveAsync(int id, bool isActive)
+    {
+        _ = await _userRepo.GetByIdAsync(id)
+            ?? throw new KeyNotFoundException($"User {id} not found.");
+        await _userRepo.SetActiveAsync(id, isActive);
+    }
+
+    public async Task<ApiKeyCreatedResponse> CreateApiKeyAsync(int userId, string keyName, int? createdByAdminId = null)
     {
         _ = await _userRepo.GetByIdAsync(userId)
             ?? throw new KeyNotFoundException($"User {userId} not found.");
@@ -80,7 +87,7 @@ public class UserService : IUserService
             KeyHash = keyHash,
             Name = keyName,
             IsActive = true,
-            CreatedByAdminId = adminId
+            CreatedByAdminId = createdByAdminId
         };
 
         var id = await _apiKeyRepo.CreateAsync(apiKey);
@@ -129,6 +136,7 @@ public class UserService : IUserService
         Username = u.Username,
         Email = u.Email,
         Role = u.RoleName,
+        IsActive = u.IsActive,
         CreatedAt = u.CreatedAt
     };
 }

@@ -60,6 +60,22 @@ public class UserRepository : IUserRepository
             user);
     }
 
+    public async Task UpdatePasswordAsync(int id, string passwordHash)
+    {
+        using var conn = _connectionFactory.CreateConnection();
+        await conn.ExecuteAsync(
+            "UPDATE Users SET PasswordHash = @PasswordHash WHERE Id = @Id",
+            new { Id = id, PasswordHash = passwordHash });
+    }
+
+    public async Task SetActiveAsync(int id, bool isActive)
+    {
+        using var conn = _connectionFactory.CreateConnection();
+        await conn.ExecuteAsync(
+            "UPDATE Users SET IsActive = @IsActive WHERE Id = @Id",
+            new { Id = id, IsActive = isActive ? 1 : 0 });
+    }
+
     public async Task DeleteAsync(int id)
     {
         using var conn = _connectionFactory.CreateConnection();
