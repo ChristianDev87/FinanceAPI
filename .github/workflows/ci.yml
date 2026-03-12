@@ -27,6 +27,10 @@ jobs:
         env:
           JwtSettings__SecretKey: "ci-test-secret-key-minimum-32-chars!!"
 
+      - name: Debug - Zeige TestResults
+        if: always()
+        run: find . -name "*.trx" 2>/dev/null || echo "Keine .trx Dateien gefunden"
+
       - name: Test Report
         uses: EnricoMi/publish-unit-test-result-action/linux@v2
         if: always()
