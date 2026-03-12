@@ -17,6 +17,8 @@
         <PackageReference Include="Moq" Version="4.20.72"/>
         <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.3"/>
         <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.3"/>
+        <PackageReference Include="Npgsql" Version="9.0.3"/>
+        <PackageReference Include="MySqlConnector" Version="2.4.0"/>
         <PackageReference Include="BCrypt.Net-Next" Version="4.0.3"/>
         <PackageReference Include="Dapper" Version="2.1.66"/>
         <PackageReference Include="coverlet.collector" Version="6.0.2">
@@ -30,8 +32,14 @@
     </ItemGroup>
 
     <ItemGroup>
-        <!-- Copy schema.sql from the main project into the test output directory -->
+        <!-- Copy schema files from the main project into the test output directory -->
         <None Include="..\FinanceAPI\Database\schema.sql" Link="Database\schema.sql">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Include="..\FinanceAPI\Database\schema.postgresql.sql" Link="Database\schema.postgresql.sql">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Include="..\FinanceAPI\Database\schema.mysql.sql" Link="Database\schema.mysql.sql">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
     </ItemGroup>

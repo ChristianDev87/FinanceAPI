@@ -14,27 +14,137 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  build-and-test:
+  setup-postgres:
     runs-on: [ self-hosted, linux, dotnet10 ]
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Start PostgreSQL
+        run: |
+          docker run -d --name ci-postgres-${{ github.run_id }} \
+            -e POSTGRES_DB=financedb \
+            -e POSTGRES_USER=finance_user \
+            -e POSTGRES_PASSWORD=ci-test-password \
+            -p 5432:5432 \
+            postgres:16-alpine
+          for i in $(seq 1 30); do
+            docker exec ci-postgres-${{ github.run_id }} pg_isready -U finance_user && break
+            sleep 1
+          done
 
+  test-postgres:
+    runs-on: [ self-hosted, linux, dotnet10 ]
+    needs: setup-postgres
+    if: github.event_name == 'pull_request'
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-
       - name: Restore
         run: dotnet restore
-
       - name: Build
         run: dotnet build --no-restore --configuration Release
-
-      - name: Test
-        if: github.event_name == 'pull_request'
+      - name: Test (PostgreSQL)
         run: dotnet test --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=results.trx" --results-directory ./TestResults
         env:
           JwtSettings__SecretKey: "ci-test-secret-key-minimum-32-chars!!"
-
-      - name: Test Report
+          DatabaseSettings__Provider: postgresql
+          ConnectionStrings__DefaultConnection: "Host=host-gateway;Port=5432;Database=financedb;Username=finance_user;Password=ci-test-password"
+      - name: Test Report (PostgreSQL)
         uses: EnricoMi/publish-unit-test-result-action/linux@v2
-        if: github.event_name == 'pull_request'
+        if: always()
         with:
           files: "./TestResults/results.trx"
+          check_name: "Test Results (postgresql)"
+
+  cleanup-postgres:
+    runs-on: [ self-hosted, linux, dotnet10 ]
+    needs: test-postgres
+    if: always() && github.event_name == 'pull_request'
+    steps:
+      - name: Remove PostgreSQL Container
+        run: docker rm -f ci-postgres-${{ github.run_id }} 2>/dev/null || true
+
+  setup-mysql:
+    runs-on: [ self-hosted, linux, dotnet10 ]
+    needs: cleanup-postgres
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Start MySQL
+        run: |
+          docker run -d --name ci-mysql-${{ github.run_id }} \
+            -e MYSQL_DATABASE=financedb \
+            -e MYSQL_USER=finance_user \
+            -e MYSQL_PASSWORD=ci-test-password \
+            -e MYSQL_ROOT_PASSWORD=ci-root-password \
+            -p 3306:3306 \
+            mysql:8-debian
+          for i in $(seq 1 30); do
+            docker exec ci-mysql-${{ github.run_id }} mysqladmin ping -h localhost --silent && break
+            sleep 2
+          done
+
+  test-mysql:
+    runs-on: [ self-hosted, linux, dotnet10 ]
+    needs: setup-mysql
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Restore
+        run: dotnet restore
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+      - name: Test (MySQL)
+        run: dotnet test --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=results.trx" --results-directory ./TestResults
+        env:
+          JwtSettings__SecretKey: "ci-test-secret-key-minimum-32-chars!!"
+          DatabaseSettings__Provider: mysql
+          ConnectionStrings__DefaultConnection: "Server=host-gateway;Port=3306;Database=financedb;User=finance_user;Password=ci-test-password"
+      - name: Test Report (MySQL)
+        uses: EnricoMi/publish-unit-test-result-action/linux@v2
+        if: always()
+        with:
+          files: "./TestResults/results.trx"
+          check_name: "Test Results (mysql)"
+
+  cleanup-mysql:
+    runs-on: [ self-hosted, linux, dotnet10 ]
+    needs: test-mysql
+    if: always() && github.event_name == 'pull_request'
+    steps:
+      - name: Remove MySQL Container
+        run: docker rm -f ci-mysql-${{ github.run_id }} 2>/dev/null || true
+
+  test-sqlite:
+    runs-on: [ self-hosted, linux, dotnet10 ]
+    needs: cleanup-mysql
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Restore
+        run: dotnet restore
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+      - name: Test (SQLite)
+        run: dotnet test --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=results.trx" --results-directory ./TestResults
+        env:
+          JwtSettings__SecretKey: "ci-test-secret-key-minimum-32-chars!!"
+          DatabaseSettings__Provider: sqlite
+          ConnectionStrings__DefaultConnection: "Data Source=ci-test.db"
+      - name: Test Report (SQLite)
+        uses: EnricoMi/publish-unit-test-result-action/linux@v2
+        if: always()
+        with:
+          files: "./TestResults/results.trx"
+          check_name: "Test Results (sqlite)"
+
+  build:
+    runs-on: [ self-hosted, linux, dotnet10 ]
+    if: github.event_name == 'push'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Restore
+        run: dotnet restore
+      - name: Build
+        run: dotnet build --no-restore --configuration Release

@@ -13,6 +13,13 @@ public class MySqlDialect : ISqlDialect
 
     public async Task<int> InsertAsync(IDbConnection conn, string sql, object param)
     {
+        // LAST_INSERT_ID() is connection-scoped in MySQL.
+        // Dapper closes a non-open connection after each call, so a subsequent
+        // SELECT LAST_INSERT_ID() would run on a different pooled connection and return 0.
+        // Opening explicitly keeps both calls on the same connection.
+        if (conn.State != System.Data.ConnectionState.Open)
+            conn.Open();
+
         await conn.ExecuteAsync(sql, param);
         return (int)await conn.ExecuteScalarAsync<long>("SELECT LAST_INSERT_ID()");
     }
