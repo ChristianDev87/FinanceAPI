@@ -17,6 +17,37 @@ jobs:
   build-and-test:
     runs-on: [ self-hosted, linux, dotnet10 ]
 
+    strategy:
+      matrix:
+        db: [ sqlite, postgresql, mysql ]
+      fail-fast: false
+
+    services:
+      postgresql:
+        image: ${{ matrix.db == 'postgresql' && 'postgres:16-alpine' || '' }}
+        env:
+          POSTGRES_DB: financedb
+          POSTGRES_USER: finance_user
+          POSTGRES_PASSWORD: ci-test-password
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      mysql:
+        image: ${{ matrix.db == 'mysql' && 'mysql:8-debian' || '' }}
+        env:
+          MYSQL_DATABASE: financedb
+          MYSQL_USER: finance_user
+          MYSQL_PASSWORD: ci-test-password
+          MYSQL_ROOT_PASSWORD: ci-root-password
+        options: >-
+          --health-cmd "mysqladmin ping -h localhost"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -32,9 +63,15 @@ jobs:
         run: dotnet test --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=results.trx" --results-directory ./TestResults
         env:
           JwtSettings__SecretKey: "ci-test-secret-key-minimum-32-chars!!"
+          DatabaseSettings__Provider: ${{ matrix.db }}
+          ConnectionStrings__DefaultConnection: >-
+            ${{ matrix.db == 'postgresql' && 'Host=localhost;Port=5432;Database=financedb;Username=finance_user;Password=ci-test-password' ||
+                matrix.db == 'mysql'      && 'Server=localhost;Port=3306;Database=financedb;User=finance_user;Password=ci-test-password' ||
+                'Data Source=ci-test.db' }}
 
       - name: Test Report
         uses: EnricoMi/publish-unit-test-result-action/linux@v2
         if: github.event_name == 'pull_request'
         with:
           files: "./TestResults/results.trx"
+          check_name: "Test Results (${{ matrix.db }})"
