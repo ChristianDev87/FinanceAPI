@@ -14,7 +14,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       - name: Restore
         run: dotnet restore
@@ -23,7 +23,7 @@ jobs:
         run: dotnet build --no-restore --configuration Release
 
       - name: Test
-        run: dotnet test --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=results.xml"
+        run: dotnet test --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=results.xml" --results-directory ./TestResults
         env:
           JwtSettings__SecretKey: "ci-test-secret-key-minimum-32-chars!!"
 
@@ -31,4 +31,4 @@ jobs:
         uses: EnricoMi/publish-unit-test-result-action/linux@v2
         if: always()
         with:
-          files: "**/*.trx"
+          files: "./TestResults/*.trx"
