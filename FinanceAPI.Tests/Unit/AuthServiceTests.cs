@@ -44,7 +44,7 @@ public class AuthServiceTests
 
         Assert.NotNull(result.Token);
         Assert.NotEmpty(result.Token);
-        Assert.Equal("alice", result.User.Username);
+        Assert.Equal("Alice", result.User.Username);
         Assert.Equal(1, result.User.Id);
     }
 

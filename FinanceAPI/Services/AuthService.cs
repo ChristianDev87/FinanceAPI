@@ -11,6 +11,11 @@ namespace FinanceAPI.Services;
 
 public class AuthService : IAuthService
 {
+    // Serializes concurrent registrations to prevent two simultaneous requests
+    // from both seeing 0 users and both receiving the Admin role.
+    // Note: single-instance only — a distributed lock would be required for multi-node deployments.
+    private static readonly SemaphoreSlim _registerLock = new(1, 1);
+
     private readonly IUserRepository _userRepo;
     private readonly ICategoryRepository _categoryRepo;
     private readonly IConfiguration _config;
@@ -24,14 +29,28 @@ public class AuthService : IAuthService
 
     public async Task<AuthResponse> RegisterAsync(RegisterRequest request)
     {
-        String role = "User"; //default role
+        await _registerLock.WaitAsync();
+        try
+        {
+            return await RegisterInternalAsync(request);
+        }
+        finally
+        {
+            _registerLock.Release();
+        }
+    }
+
+    private async Task<AuthResponse> RegisterInternalAsync(RegisterRequest request)
+    {
+        string role = "User";
+
         if (await _userRepo.GetByUsernameAsync(request.Username) is not null)
             throw new ArgumentException("Username ist bereits vergeben.");
 
         if (await _userRepo.GetByEmailAsync(request.Email) is not null)
             throw new ArgumentException("Email ist bereits registiert.");
 
-        if (_userRepo.GetAllAsync().Result.Count() is 0) //Make sure the first user will registered as admin.
+        if (!(await _userRepo.GetAllAsync()).Any())
             role = "Admin";
         
         var user = new User
