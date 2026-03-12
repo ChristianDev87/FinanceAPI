@@ -8,26 +8,39 @@ using Microsoft.Extensions.DependencyInjection;
 namespace FinanceAPI.Tests.Integration;
 
 /// <summary>
-/// A WebApplicationFactory that runs the FinanceAPI against an isolated
-/// named SQLite in-memory database. Each factory instance gets its own
-/// database, so test classes that each receive their own factory instance
-/// are fully isolated from each other.
+/// A WebApplicationFactory that runs the FinanceAPI against an isolated database.
+/// By default it uses a named SQLite in-memory database, but when the environment
+/// variables DatabaseSettings__Provider and ConnectionStrings__DefaultConnection
+/// are set (as in CI), it uses the real database provider instead.
 /// </summary>
 public sealed class FinanceApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
+    private readonly string _provider;
+    private readonly string _connectionString;
     private readonly string _dbName = $"finance_test_{Guid.NewGuid():N}";
     private SqliteConnection? _keepAlive;
+
+    public FinanceApiFactory()
+    {
+        _provider = Environment.GetEnvironmentVariable("DatabaseSettings__Provider") ?? "sqlite";
+        _connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
+                            ?? $"Data Source={_dbName};Mode=Memory;Cache=Shared";
+    }
+
+    private bool IsSqliteInMemory =>
+        _provider.Equals("sqlite", StringComparison.OrdinalIgnoreCase)
+        && _connectionString.Contains("Memory", StringComparison.OrdinalIgnoreCase);
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
 
-        // Inject test-specific configuration (JWT settings, connection string, default categories)
         builder.ConfigureAppConfiguration((_, config) =>
         {
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                { "ConnectionStrings:DefaultConnection", $"Data Source={_dbName};Mode=Memory;Cache=Shared" },
+                { "ConnectionStrings:DefaultConnection", _connectionString },
+                { "DatabaseSettings:Provider",           _provider },
                 { "JwtSettings:SecretKey",              "super-secret-key-for-integration-tests-32chars!!" },
                 { "JwtSettings:Issuer",                 "FinanceAPI-Test" },
                 { "JwtSettings:Audience",               "FinanceAPI-Test" },
@@ -38,26 +51,32 @@ public sealed class FinanceApiFactory : WebApplicationFactory<Program>, IAsyncLi
             });
         });
 
-        // Replace the real IDbConnectionFactory with the in-memory one
-        builder.ConfigureServices(services =>
+        // Only replace the connection factory for SQLite in-memory mode
+        // (for PostgreSQL/MySQL the app's own factory from Program.cs is correct)
+        if (IsSqliteInMemory)
         {
-            var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(IDbConnectionFactory));
-            if (descriptor != null) services.Remove(descriptor);
+            builder.ConfigureServices(services =>
+            {
+                var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(IDbConnectionFactory));
+                if (descriptor != null) services.Remove(descriptor);
 
-            services.AddSingleton<IDbConnectionFactory>(_ => new InMemoryDbConnectionFactory(_dbName));
-        });
+                services.AddSingleton<IDbConnectionFactory>(_ => new InMemoryDbConnectionFactory(_dbName));
+            });
+        }
     }
 
     /// <summary>
-    /// Opens a persistent connection so the in-memory database survives
+    /// For SQLite in-memory: opens a persistent connection so the database survives
     /// across the multiple short-lived connections made by repositories.
-    /// This must be called before CreateClient(), which triggers app startup
-    /// and DatabaseInitializer.
+    /// For PostgreSQL/MySQL: no-op (the database is persistent).
     /// </summary>
     public async Task InitializeAsync()
     {
-        _keepAlive = new SqliteConnection($"Data Source={_dbName};Mode=Memory;Cache=Shared");
-        await _keepAlive.OpenAsync();
+        if (IsSqliteInMemory)
+        {
+            _keepAlive = new SqliteConnection($"Data Source={_dbName};Mode=Memory;Cache=Shared");
+            await _keepAlive.OpenAsync();
+        }
     }
 
     public new async Task DisposeAsync()
