@@ -96,7 +96,7 @@ public class StatisticsService : IStatisticsService
             parameters.Add("Type", type);
         }
 
-        sql += " GROUP BY t.CategoryId, t.Type ORDER BY Total DESC";
+        sql += " GROUP BY t.CategoryId, c.Name, c.Color, t.Type ORDER BY Total DESC";
 
         return await conn.QueryAsync<CategoryStatDto>(sql, parameters);
     }
