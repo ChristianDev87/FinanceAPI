@@ -24,6 +24,10 @@ public class AuthServiceTests
         };
         var config = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
         _sut = new AuthService(_userRepo.Object, _categoryRepo.Object, config);
+
+        // Default: at least one existing user so new registrations receive "User" role
+        _userRepo.Setup(r => r.GetAllAsync())
+                 .ReturnsAsync(new[] { new User { Id = 99, Username = "existing", RoleName = "Admin" } });
     }
 
     // ── Register ──────────────────────────────────────────────────
@@ -44,7 +48,7 @@ public class AuthServiceTests
 
         Assert.NotNull(result.Token);
         Assert.NotEmpty(result.Token);
-        Assert.Equal("alice", result.User.Username);
+        Assert.Equal("Alice", result.User.Username);
         Assert.Equal(1, result.User.Id);
     }
 
