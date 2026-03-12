@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build-and-test:
+    runs-on: [ self-hosted, linux, dotnet10 ]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=results.xml"
+        env:
+          JwtSettings__SecretKey: "ci-test-secret-key-minimum-32-chars!!"
+
+      - name: Test Report
+        uses: dorny/tests-reporter@v1
+        if: always()
+        with:
+          name: .NET Tests
+          path: "**/*.trx"
+          reporter: dotnet-trx
