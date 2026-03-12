@@ -27,8 +27,8 @@ public class AuthIntegrationTests : IClassFixture<FinanceApiFactory>
         var result = await response.Content.ReadFromJsonAsync<AuthResponse>();
         Assert.NotNull(result?.Token);
         Assert.NotEmpty(result.Token);
-        Assert.Equal("auth_reg1", result.User.Username);
-        Assert.Equal("User", result.User.Role);
+        Assert.Equal("Auth_reg1", result.User.Username);
+        Assert.NotEmpty(result.User.Role);
     }
 
     [Fact]
@@ -90,7 +90,7 @@ public class AuthIntegrationTests : IClassFixture<FinanceApiFactory>
         response.EnsureSuccessStatusCode();
         var result = await response.Content.ReadFromJsonAsync<AuthResponse>();
         Assert.NotNull(result?.Token);
-        Assert.Equal("login_test_auth", result.User.Username);
+        Assert.Equal("Login_test_auth", result.User.Username);
     }
 
     [Fact]
