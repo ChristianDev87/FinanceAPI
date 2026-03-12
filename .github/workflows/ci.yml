@@ -47,7 +47,7 @@ jobs:
         env:
           JwtSettings__SecretKey: "ci-test-secret-key-minimum-32-chars!!"
           DatabaseSettings__Provider: postgresql
-          ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=financedb;Username=finance_user;Password=ci-test-password"
+          ConnectionStrings__DefaultConnection: "Host=host-gateway;Port=5432;Database=financedb;Username=finance_user;Password=ci-test-password"
       - name: Test Report (PostgreSQL)
         uses: EnricoMi/publish-unit-test-result-action/linux@v2
         if: always()
@@ -98,7 +98,7 @@ jobs:
         env:
           JwtSettings__SecretKey: "ci-test-secret-key-minimum-32-chars!!"
           DatabaseSettings__Provider: mysql
-          ConnectionStrings__DefaultConnection: "Server=localhost;Port=3306;Database=financedb;User=finance_user;Password=ci-test-password"
+          ConnectionStrings__DefaultConnection: "Server=host-gateway;Port=3306;Database=financedb;User=finance_user;Password=ci-test-password"
       - name: Test Report (MySQL)
         uses: EnricoMi/publish-unit-test-result-action/linux@v2
         if: always()
