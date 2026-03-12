@@ -23,16 +23,12 @@ jobs:
         run: dotnet build --no-restore --configuration Release
 
       - name: Test
-        run: dotnet test --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=results.xml" --results-directory ./TestResults
+        run: dotnet test --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=results.trx" --results-directory ./TestResults
         env:
           JwtSettings__SecretKey: "ci-test-secret-key-minimum-32-chars!!"
-
-      - name: Debug - Zeige TestResults
-        if: always()
-        run: find . -name "*.trx" 2>/dev/null || echo "Keine .trx Dateien gefunden"
 
       - name: Test Report
         uses: EnricoMi/publish-unit-test-result-action/linux@v2
         if: always()
         with:
-          files: "./TestResults/*.trx"
+          files: "./TestResults/results.trx"
