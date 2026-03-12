@@ -4,6 +4,10 @@ on:
   pull_request:
     branches: [ master ]
 
+permissions:
+  pull-requests: write
+  checks: write
+
 jobs:
   build-and-test:
     runs-on: [ self-hosted, linux, dotnet10 ]
@@ -24,9 +28,7 @@ jobs:
           JwtSettings__SecretKey: "ci-test-secret-key-minimum-32-chars!!"
 
       - name: Test Report
-        uses: dorny/tests-reporter@v1
+        uses: EnricoMi/publish-unit-test-result-action@v2
         if: always()
         with:
-          name: .NET Tests
-          path: "**/*.trx"
-          reporter: dotnet-trx
+          files: "**/*.trx"
