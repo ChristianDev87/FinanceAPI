@@ -65,18 +65,30 @@ switch (provider.ToLowerInvariant())
     default: // sqlite
         // Resolve relative paths against ContentRootPath so the location is
         // consistent regardless of working directory (dev, published, Docker, …)
-        var rawConnStr = builder.Configuration.GetConnectionString("DefaultConnection")!;
-        var dataSource = rawConnStr.Split(';')
-            .Select(p => p.Trim())
-            .FirstOrDefault(p => p.StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase))
-            ?.Substring("Data Source=".Length);
+        var rawConnStr = builder.Configuration.GetConnectionString("DefaultConnection");
 
-        var connectionString = rawConnStr;
-        if (dataSource is not null && !Path.IsPathRooted(dataSource))
+        // In test environments the factory replaces IDbConnectionFactory, so a missing
+        // connection string is expected. In all other environments it is a fatal misconfiguration.
+        if (rawConnStr is null && !builder.Environment.IsEnvironment("Testing"))
+            throw new InvalidOperationException(
+                "ConnectionStrings:DefaultConnection is not configured. " +
+                "Copy appsettings.example.json to appsettings.json and set a valid connection string.");
+
+        var connectionString = rawConnStr ?? string.Empty;
+
+        if (rawConnStr is not null)
         {
-            var fullPath = Path.GetFullPath(dataSource, builder.Environment.ContentRootPath);
-            Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
-            connectionString = $"Data Source={fullPath}";
+            var dataSource = rawConnStr.Split(';')
+                .Select(p => p.Trim())
+                .FirstOrDefault(p => p.StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase))
+                ?.Substring("Data Source=".Length);
+
+            if (dataSource is not null && !Path.IsPathRooted(dataSource))
+            {
+                var fullPath = Path.GetFullPath(dataSource, builder.Environment.ContentRootPath);
+                Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+                connectionString = $"Data Source={fullPath}";
+            }
         }
 
         dbFactory = new SqliteConnectionFactory(connectionString);
