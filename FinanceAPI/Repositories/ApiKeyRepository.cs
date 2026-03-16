@@ -52,7 +52,7 @@ public class ApiKeyRepository : IApiKeyRepository
         using IDbConnection conn = _connectionFactory.CreateConnection();
         return await _dialect.InsertAsync(conn,
             "INSERT INTO ApiKeys (UserId, KeyHash, Name, IsActive, CreatedByAdminId) VALUES (@UserId, @KeyHash, @Name, @IsActive, @CreatedByAdminId)",
-            apiKey);
+            apiKey, cancellationToken: cancellationToken);
     }
 
     public Task<int> CreateAsync(ApiKey apiKey, IDbConnection conn, IDbTransaction txn)

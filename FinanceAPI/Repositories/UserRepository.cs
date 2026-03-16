@@ -71,7 +71,7 @@ public class UserRepository : IUserRepository
         using IDbConnection conn = _connectionFactory.CreateConnection();
         return await _dialect.InsertAsync(conn,
             "INSERT INTO Users (Username, Email, PasswordHash, RoleName) VALUES (@Username, @Email, @PasswordHash, @RoleName)",
-            user);
+            user, cancellationToken: cancellationToken);
     }
 
     public Task<int> CreateAsync(User user, IDbConnection conn, IDbTransaction txn)

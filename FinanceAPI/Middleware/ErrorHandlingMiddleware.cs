@@ -35,7 +35,8 @@ public class ErrorHandlingMiddleware
             context.Response.ContentType = "application/json";
             context.Response.StatusCode = StatusCodes.Status409Conflict;
             await context.Response.WriteAsync(
-                JsonSerializer.Serialize(new { error = "A duplicate value violates a unique constraint.", statusCode = StatusCodes.Status409Conflict }));
+                JsonSerializer.Serialize(new { error = "A duplicate value violates a unique constraint.", statusCode = StatusCodes.Status409Conflict }),
+                context.RequestAborted);
             return;
         }
 
@@ -63,7 +64,7 @@ public class ErrorHandlingMiddleware
         context.Response.ContentType = "application/json";
         context.Response.StatusCode = statusCode;
 
-        await context.Response.WriteAsync(JsonSerializer.Serialize(new { error = message, statusCode }));
+        await context.Response.WriteAsync(JsonSerializer.Serialize(new { error = message, statusCode }), context.RequestAborted);
     }
 
     private static bool IsUniqueConstraintViolation(Exception ex)

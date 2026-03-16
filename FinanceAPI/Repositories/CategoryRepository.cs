@@ -53,7 +53,7 @@ public class CategoryRepository : ICategoryRepository
         using IDbConnection conn = _connectionFactory.CreateConnection();
         return await _dialect.InsertAsync(conn,
             "INSERT INTO Categories (UserId, Name, Color, Type, SortOrder) VALUES (@UserId, @Name, @Color, @Type, @SortOrder)",
-            category);
+            category, cancellationToken: cancellationToken);
     }
 
     public Task<int> CreateAsync(Category category, IDbConnection conn, IDbTransaction txn)

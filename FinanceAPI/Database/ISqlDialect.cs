@@ -18,5 +18,5 @@ public interface ISqlDialect
     string CaseInsensitiveEqual(string column, string paramName);
 
     /// <summary>Executes an INSERT statement and returns the newly generated row ID.</summary>
-    Task<int> InsertAsync(IDbConnection conn, string sql, object param, IDbTransaction? transaction = null);
+    Task<int> InsertAsync(IDbConnection conn, string sql, object param, IDbTransaction? transaction = null, CancellationToken cancellationToken = default);
 }
