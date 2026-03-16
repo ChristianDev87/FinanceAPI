@@ -72,14 +72,26 @@ public class DatabaseInitializer
                     continue;
                 }
 
-                try
+                const int maxAttempts = 3;
+                for (int attempt = 1; attempt <= maxAttempts; attempt++)
                 {
-                    await connection.ExecuteAsync(statement);
-                }
-                catch (Exception ex) when (IsAlreadyExistsError(ex, normalizedProvider, statement))
-                {
-                    // Object already exists — safe to skip on subsequent startups
-                    _logger.LogDebug("Statement skipped (already exists): {Message}", ex.Message);
+                    try
+                    {
+                        await connection.ExecuteAsync(statement);
+                        break;
+                    }
+                    catch (Exception ex) when (IsAlreadyExistsError(ex, normalizedProvider, statement))
+                    {
+                        // Object already exists — safe to skip on subsequent startups
+                        _logger.LogDebug("Statement skipped (already exists): {Message}", ex.Message);
+                        break;
+                    }
+                    catch (Exception ex) when (IsDeadlockError(ex, normalizedProvider) && attempt < maxAttempts)
+                    {
+                        _logger.LogWarning("Deadlock on schema init attempt {Attempt}/{Max}, retrying in {Delay}ms...",
+                            attempt, maxAttempts, 200 * attempt);
+                        await Task.Delay(200 * attempt);
+                    }
                 }
             }
         }
@@ -98,6 +110,10 @@ public class DatabaseInitializer
 
         _logger.LogInformation("Database initialized.");
     }
+
+    private static bool IsDeadlockError(Exception ex, string provider) =>
+        provider is "mysql" &&
+        ex is MySqlConnector.MySqlException { ErrorCode: MySqlConnector.MySqlErrorCode.LockDeadlock };
 
     /// <summary>
     /// Returns true when the exception indicates that the database object already exists
