@@ -140,6 +140,12 @@ All protected routes require either `Authorization: Bearer <jwt>` or `X-Api-Key:
 | GET | `/api/statistics/monthly?year={y}` | Income and expense totals per month (`year` optional, defaults to current year) |
 | GET | `/api/statistics/categories?month={m}&year={y}&type={t}` | Totals grouped by category (all params optional, default to current month/year) |
 
+### Health
+
+| Method | Route | Auth | Description |
+|--------|-------|------|-------------|
+| GET | `/health` | – | Returns `Healthy` when the application is running |
+
 ## Authentication
 
 ### JWT (Browser / Frontend)
@@ -182,7 +188,9 @@ FinanceAPI/
 ├── Database/           IDbConnectionFactory, ISqlDialect,
 │                       SqliteConnectionFactory, PostgreSqlConnectionFactory, MySqlConnectionFactory,
 │                       SqliteDialect, PostgreSqlDialect, MySqlDialect,
-│                       DatabaseInitializer, schema.sql, schema.postgresql.sql, schema.mysql.sql
+│                       DatabaseInitializer, DateOnlyTypeHandler,
+│                       schema.sql, schema.postgresql.sql, schema.mysql.sql
+├── Domain/             UserRoles (Admin, User), TransactionTypes (income, expense)
 ├── DTOs/               Auth/, Users/, ApiKeys/, Categories/,
 │                       Transactions/, Statistics/, Profile/
 ├── Interfaces/
@@ -212,6 +220,8 @@ All errors are returned as JSON by `ErrorHandlingMiddleware`:
 | `UnauthorizedAccessException` | 401 Unauthorized |
 | `ArgumentException` / `InvalidOperationException` | 400 Bad Request |
 | Any other | 500 Internal Server Error |
+
+Every response includes an `X-Correlation-Id` header containing the ASP.NET Core trace identifier. This value can be used to correlate client requests with server logs.
 
 ## Database
 
