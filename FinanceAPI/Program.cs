@@ -160,7 +160,9 @@ builder.Services.AddRateLimiter(options =>
 {
     options.AddFixedWindowLimiter("auth", config =>
     {
-        config.PermitLimit = 10;
+        // Disable rate limiting in the test environment to prevent concurrent
+        // integration tests from hitting the 429 limit.
+        config.PermitLimit = builder.Environment.IsEnvironment("Testing") ? int.MaxValue : 10;
         config.Window = TimeSpan.FromMinutes(1);
         config.QueueLimit = 0;
     });
