@@ -166,6 +166,61 @@ public class UserServiceTests
         await Assert.ThrowsAsync<KeyNotFoundException>(() => _sut.SetActiveAsync(99, false));
     }
 
+    // ── ChangePassword ────────────────────────────────────────────
+
+    [Fact]
+    public async Task ChangePasswordAsync_CorrectCurrentPassword_UpdatesHash()
+    {
+        string hash = BCrypt.Net.BCrypt.HashPassword("OldPass1", workFactor: 4);
+        _userRepo.Setup(r => r.GetByIdAsync(1))
+                 .ReturnsAsync(new User { Id = 1, Username = "alice", PasswordHash = hash, RoleName = "User", IsActive = true });
+
+        await _sut.ChangePasswordAsync(1, "OldPass1", "NewPass1");
+
+        _userRepo.Verify(r => r.UpdatePasswordAsync(1, It.IsAny<string>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ChangePasswordAsync_WrongCurrentPassword_ThrowsUnauthorizedAccessException()
+    {
+        string hash = BCrypt.Net.BCrypt.HashPassword("OldPass1", workFactor: 4);
+        _userRepo.Setup(r => r.GetByIdAsync(1))
+                 .ReturnsAsync(new User { Id = 1, Username = "alice", PasswordHash = hash, RoleName = "User", IsActive = true });
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            _sut.ChangePasswordAsync(1, "WrongPass", "NewPass1"));
+    }
+
+    [Fact]
+    public async Task ChangePasswordAsync_UserNotFound_ThrowsKeyNotFoundException()
+    {
+        _userRepo.Setup(r => r.GetByIdAsync(99)).ReturnsAsync((User?)null);
+
+        await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+            _sut.ChangePasswordAsync(99, "any", "NewPass1"));
+    }
+
+    // ── AdminSetPassword ──────────────────────────────────────────
+
+    [Fact]
+    public async Task AdminSetPasswordAsync_ExistingUser_UpdatesHash()
+    {
+        _userRepo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(MakeUser(1));
+
+        await _sut.AdminSetPasswordAsync(1, "NewPass1");
+
+        _userRepo.Verify(r => r.UpdatePasswordAsync(1, It.IsAny<string>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task AdminSetPasswordAsync_UserNotFound_ThrowsKeyNotFoundException()
+    {
+        _userRepo.Setup(r => r.GetByIdAsync(99)).ReturnsAsync((User?)null);
+
+        await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+            _sut.AdminSetPasswordAsync(99, "NewPass1"));
+    }
+
     // ── API Keys ──────────────────────────────────────────────────
 
     [Fact]

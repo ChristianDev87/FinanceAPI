@@ -5,6 +5,7 @@ using FinanceAPI.DTOs.Transactions;
 
 namespace FinanceAPI.Tests.Integration;
 
+[Collection("IntegrationTests")]
 public class TransactionsIntegrationTests : IClassFixture<FinanceApiFactory>
 {
     private readonly FinanceApiFactory _factory;

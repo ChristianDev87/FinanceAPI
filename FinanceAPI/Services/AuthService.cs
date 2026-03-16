@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
@@ -46,15 +47,15 @@ public class AuthService : IAuthService
 
         if (await _userRepo.GetByUsernameAsync(request.Username) is not null)
         {
-            throw new ArgumentException("Username ist bereits vergeben.");
+            throw new ArgumentException("Username is already taken.");
         }
 
         if (await _userRepo.GetByEmailAsync(request.Email) is not null)
         {
-            throw new ArgumentException("Email ist bereits registiert.");
+            throw new ArgumentException("Email is already registered.");
         }
 
-        if (!(await _userRepo.GetAllAsync()).Any())
+        if (!await _userRepo.AnyAsync())
         {
             role = "Admin";
         }
@@ -101,16 +102,16 @@ public class AuthService : IAuthService
     public async Task<AuthResponse> LoginAsync(LoginRequest request)
     {
         User user = await _userRepo.GetByUsernameAsync(request.Username)
-                   ?? throw new KeyNotFoundException("Username/Passwort ungültig.");
-
-        if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
-        {
-            throw new KeyNotFoundException("Username/Passwort ungültig.");
-        }
+                   ?? throw new UnauthorizedAccessException("Invalid username or password.");
 
         if (!user.IsActive)
         {
-            throw new UnauthorizedAccessException("Dieses Konto wurde gesperrt.");
+            throw new UnauthorizedAccessException("This account has been deactivated.");
+        }
+
+        if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+        {
+            throw new UnauthorizedAccessException("Invalid username or password.");
         }
 
         return new AuthResponse
@@ -129,7 +130,7 @@ public class AuthService : IAuthService
     public string GenerateToken(User user)
     {
         IConfigurationSection jwtSettings = _config.GetSection("JwtSettings");
-        SymmetricSecurityKey key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["SecretKey"]!));
+        SymmetricSecurityKey key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["SecretKey"]!)) { KeyId = "finance-api-key" };
         SigningCredentials creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
         Claim[] claims = new[]
@@ -145,7 +146,7 @@ public class AuthService : IAuthService
             issuer: jwtSettings["Issuer"],
             audience: jwtSettings["Audience"],
             claims: claims,
-            expires: DateTime.UtcNow.AddHours(double.Parse(jwtSettings["ExpirationHours"]!)),
+            expires: DateTime.UtcNow.AddHours(double.Parse(jwtSettings["ExpirationHours"]!, CultureInfo.InvariantCulture)),
             signingCredentials: creds
         );
 

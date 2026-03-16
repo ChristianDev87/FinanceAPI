@@ -9,3 +9,5 @@
 *.dotsettings.user
 /FinanceAPI.Tests/obj
 /FinanceAPI.Tests/bin
+/WebApp
+_Frontend

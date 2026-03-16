@@ -26,8 +26,7 @@ public class AuthServiceTests
         _sut = new AuthService(_userRepo.Object, _categoryRepo.Object, config);
 
         // Default: at least one existing user so new registrations receive "User" role
-        _userRepo.Setup(r => r.GetAllAsync())
-                 .ReturnsAsync(new[] { new User { Id = 99, Username = "existing", RoleName = "Admin" } });
+        _userRepo.Setup(r => r.AnyAsync()).ReturnsAsync(true);
     }
 
     // ── Register ──────────────────────────────────────────────────
@@ -136,22 +135,22 @@ public class AuthServiceTests
     }
 
     [Fact]
-    public async Task LoginAsync_UserNotFound_ThrowsKeyNotFoundException()
+    public async Task LoginAsync_UserNotFound_ThrowsUnauthorizedAccessException()
     {
         _userRepo.Setup(r => r.GetByUsernameAsync("ghost")).ReturnsAsync((User?)null);
 
-        await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             _sut.LoginAsync(new LoginRequest { Username = "ghost", Password = "pass" }));
     }
 
     [Fact]
-    public async Task LoginAsync_WrongPassword_ThrowsKeyNotFoundException()
+    public async Task LoginAsync_WrongPassword_ThrowsUnauthorizedAccessException()
     {
         string hash = BCrypt.Net.BCrypt.HashPassword("correct", workFactor: 4);
         _userRepo.Setup(r => r.GetByUsernameAsync("alice"))
                  .ReturnsAsync(new User { Id = 1, Username = "alice", PasswordHash = hash, IsActive = true });
 
-        await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             _sut.LoginAsync(new LoginRequest { Username = "alice", Password = "wrong" }));
     }
 

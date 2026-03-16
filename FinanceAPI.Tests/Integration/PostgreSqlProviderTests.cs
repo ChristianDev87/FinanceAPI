@@ -6,6 +6,7 @@ using Npgsql;
 
 namespace FinanceAPI.Tests.Integration;
 
+[Collection("IntegrationTests")]
 public class PostgreSqlProviderTests : IClassFixture<FinanceApiFactory>, IAsyncLifetime
 {
     private readonly FinanceApiFactory _factory;

@@ -6,10 +6,22 @@ using FinanceAPI.Middleware;
 using FinanceAPI.Repositories;
 using FinanceAPI.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+
+// Kestrel: nur HTTP wenn DISABLE_HTTPS_REDIRECT gesetzt (z.B. Docker ohne Zertifikat)
+if (Environment.GetEnvironmentVariable("DISABLE_HTTPS_REDIRECT") == "true")
+{
+    builder.WebHost.ConfigureKestrel(options =>
+    {
+        options.ListenAnyIP(5281);
+    });
+}
+
+
 
 // ── Controllers ────────────────────────────────────────────────
 builder.Services.AddControllers();
@@ -116,24 +128,62 @@ builder.Services.AddScoped<ITransactionService, TransactionService>();
 builder.Services.AddScoped<IStatisticsService, StatisticsService>();
 
 // ── JWT Auth ────────────────────────────────────────────────────
-IConfigurationSection jwtSettings = builder.Configuration.GetSection("JwtSettings");
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
+// Fast startup validation — skipped in Testing because the factory supplies the key
+// via IConfiguration after Program.cs has already run.
+if (!builder.Environment.IsEnvironment("Testing"))
+{
+    string startupKey = builder.Configuration["JwtSettings:SecretKey"]
+        ?? throw new InvalidOperationException("JwtSettings:SecretKey is not configured.");
+    if (startupKey.Length < 32)
     {
+        throw new InvalidOperationException("JwtSettings:SecretKey must be at least 32 characters long.");
+    }
+}
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer();
+
+// Resolve TokenValidationParameters from the DI IConfiguration so that
+// WebApplicationFactory config overrides are applied before the key is read.
+// This keeps the validation key in sync with AuthService.GenerateToken().
+builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+    .Configure<IConfiguration>((options, config) =>
+    {
+        IConfigurationSection jwt = config.GetSection("JwtSettings");
+        string key = jwt["SecretKey"]
+            ?? throw new InvalidOperationException("JwtSettings:SecretKey is not configured.");
+        if (key.Length < 32)
+        {
+            throw new InvalidOperationException("JwtSettings:SecretKey must be at least 32 characters long.");
+        }
+
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = jwtSettings["Issuer"],
-            ValidAudience = jwtSettings["Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(jwtSettings["SecretKey"]!))
+            ValidIssuer = jwt["Issuer"],
+            ValidAudience = jwt["Audience"],
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key)) { KeyId = "finance-api-key" }
         };
     });
 
 builder.Services.AddAuthorization();
+
+// ── Rate Limiting ────────────────────────────────────────────────
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddFixedWindowLimiter("auth", config =>
+    {
+        // Disable rate limiting in the test environment to prevent concurrent
+        // integration tests from hitting the 429 limit.
+        config.PermitLimit = builder.Environment.IsEnvironment("Testing") ? int.MaxValue : 10;
+        config.Window = TimeSpan.FromMinutes(1);
+        config.QueueLimit = 0;
+    });
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+});
 
 // ── CORS ─────────────────────────────────────────────────────────
 string[] allowedOrigins = builder.Configuration
@@ -171,14 +221,18 @@ using (IServiceScope scope = app.Services.CreateScope())
 
 // ── Middleware Pipeline ──────────────────────────────────────────
 app.UseMiddleware<ErrorHandlingMiddleware>();
+app.UseRateLimiter();
 
-if (app.Environment.IsDevelopment())
+//if (app.Environment.IsDevelopment())
+//{
+app.UseSwagger();
+app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "FinanceAPI v1"));
+//}
+
+if (Environment.GetEnvironmentVariable("DISABLE_HTTPS_REDIRECT") != "true")
 {
-    app.UseSwagger();
-    app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "FinanceAPI v1"));
+    app.UseHttpsRedirection();
 }
-
-app.UseHttpsRedirection();
 app.UseCors();
 
 app.UseMiddleware<DualAuthMiddleware>();

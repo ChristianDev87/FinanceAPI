@@ -1,9 +1,6 @@
-using System.Security.Claims;
 using FinanceAPI.DTOs.ApiKeys;
 using FinanceAPI.DTOs.Users;
-using FinanceAPI.Interfaces.Repositories;
 using FinanceAPI.Interfaces.Services;
-using FinanceAPI.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -12,15 +9,13 @@ namespace FinanceAPI.Controllers;
 [ApiController]
 [Route("api/users")]
 [Authorize(Roles = "Admin")]
-public class UsersController : ControllerBase
+public class UsersController : AuthenticatedControllerBase
 {
     private readonly IUserService _userService;
-    private readonly IUserRepository _userRepo;
 
-    public UsersController(IUserService userService, IUserRepository userRepo)
+    public UsersController(IUserService userService)
     {
         _userService = userService;
-        _userRepo = userRepo;
     }
 
     [HttpGet]
@@ -38,12 +33,17 @@ public class UsersController : ControllerBase
     [HttpPut("{userId:int}")]
     public async Task<ActionResult<UserDto>> Update(int userId, [FromBody] UpdateUserRequest request)
     {
-        return Ok(await _userService.UpdateAsync(userId, request));
+        return Ok(await _userService.UpdateAsync(userId, request, allowRoleChange: true));
     }
 
     [HttpDelete("{userId:int}")]
     public async Task<IActionResult> Delete(int userId)
     {
+        if (userId == UserId)
+        {
+            throw new InvalidOperationException("You cannot delete your own account.");
+        }
+
         await _userService.DeleteAsync(userId);
         return NoContent();
     }
@@ -52,10 +52,9 @@ public class UsersController : ControllerBase
     [HttpPut("{userId:int}/active")]
     public async Task<IActionResult> SetActive(int userId, [FromBody] bool isActive)
     {
-        int requestingId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-        if (userId == requestingId)
+        if (userId == UserId)
         {
-            throw new InvalidOperationException("Du kannst dein eigenes Konto nicht sperren.");
+            throw new InvalidOperationException("You cannot deactivate your own account.");
         }
 
         await _userService.SetActiveAsync(userId, isActive);
@@ -66,20 +65,14 @@ public class UsersController : ControllerBase
     [HttpPut("{userId:int}/password")]
     public async Task<IActionResult> SetPassword(int userId, [FromBody] AdminSetPasswordRequest request)
     {
-        User user = await _userRepo.GetByIdAsync(userId)
-                   ?? throw new KeyNotFoundException($"User {userId} not found.");
-
-        string newHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword, workFactor: 12);
-        await _userRepo.UpdatePasswordAsync(user.Id, newHash);
-
+        await _userService.AdminSetPasswordAsync(userId, request.NewPassword);
         return NoContent();
     }
 
     [HttpPost("{userId:int}/apikeys")]
     public async Task<ActionResult<ApiKeyCreatedResponse>> CreateApiKey(int userId, [FromBody] CreateApiKeyRequest request)
     {
-        int adminId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-        ApiKeyCreatedResponse result = await _userService.CreateApiKeyAsync(userId, request.Name, createdByAdminId: adminId);
+        ApiKeyCreatedResponse result = await _userService.CreateApiKeyAsync(userId, request.Name, createdByAdminId: UserId);
         return Ok(result);
     }
 

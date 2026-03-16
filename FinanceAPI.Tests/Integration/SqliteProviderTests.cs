@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace FinanceAPI.Tests.Integration;
 
+[Collection("IntegrationTests")]
 public class SqliteProviderTests : IClassFixture<FinanceApiFactory>, IAsyncLifetime
 {
     private readonly FinanceApiFactory _factory;

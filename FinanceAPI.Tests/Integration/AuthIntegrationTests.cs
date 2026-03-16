@@ -4,6 +4,7 @@ using FinanceAPI.DTOs.Auth;
 
 namespace FinanceAPI.Tests.Integration;
 
+[Collection("IntegrationTests")]
 public class AuthIntegrationTests : IClassFixture<FinanceApiFactory>
 {
     private readonly HttpClient _client;
@@ -94,7 +95,7 @@ public class AuthIntegrationTests : IClassFixture<FinanceApiFactory>
     }
 
     [Fact]
-    public async Task Login_WrongPassword_Returns404()
+    public async Task Login_WrongPassword_Returns401()
     {
         await _client.PostAsJsonAsync("/api/auth/register", new
         {
@@ -109,11 +110,11 @@ public class AuthIntegrationTests : IClassFixture<FinanceApiFactory>
             password = "WrongPassword!"
         });
 
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]
-    public async Task Login_UnknownUser_Returns404()
+    public async Task Login_UnknownUser_Returns401()
     {
         HttpResponseMessage response = await _client.PostAsJsonAsync("/api/auth/login", new
         {
@@ -121,7 +122,7 @@ public class AuthIntegrationTests : IClassFixture<FinanceApiFactory>
             password = "Password123!"
         });
 
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]

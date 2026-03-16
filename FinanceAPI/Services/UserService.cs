@@ -31,7 +31,7 @@ public class UserService : IUserService
         return MapToDto(user);
     }
 
-    public async Task<UserDto> UpdateAsync(int id, UpdateUserRequest request)
+    public async Task<UserDto> UpdateAsync(int id, UpdateUserRequest request, bool allowRoleChange = false)
     {
         User user = await _userRepo.GetByIdAsync(id)
                    ?? throw new KeyNotFoundException($"User {id} not found.");
@@ -51,7 +51,7 @@ public class UserService : IUserService
 
         user.Username = request.Username;
         user.Email = request.Email;
-        user.RoleName = request.Role;
+        user.RoleName = allowRoleChange ? request.Role : user.RoleName;
 
         await _userRepo.UpdateAsync(user);
         return MapToDto(user);
@@ -95,14 +95,15 @@ public class UserService : IUserService
         };
 
         int id = await _apiKeyRepo.CreateAsync(apiKey);
-        ApiKey? created = await _apiKeyRepo.GetByIdAsync(id);
+        ApiKey created = await _apiKeyRepo.GetByIdAsync(id)
+                        ?? throw new InvalidOperationException($"Failed to retrieve newly created API key {id}.");
 
         return new ApiKeyCreatedResponse
         {
             Id = id,
             Name = keyName,
             Key = rawKey,
-            CreatedAt = created?.CreatedAt ?? DateTime.UtcNow.ToString("o")
+            CreatedAt = created.CreatedAt
         };
     }
 
@@ -134,6 +135,27 @@ public class UserService : IUserService
         }
 
         await _apiKeyRepo.DeactivateAsync(keyId);
+    }
+
+    public async Task ChangePasswordAsync(int userId, string currentPassword, string newPassword)
+    {
+        User user = await _userRepo.GetByIdAsync(userId)
+                   ?? throw new KeyNotFoundException($"User {userId} not found.");
+
+        if (!BCrypt.Net.BCrypt.Verify(currentPassword, user.PasswordHash))
+        {
+            throw new UnauthorizedAccessException("Current password is incorrect.");
+        }
+
+        await _userRepo.UpdatePasswordAsync(userId, BCrypt.Net.BCrypt.HashPassword(newPassword, workFactor: 12));
+    }
+
+    public async Task AdminSetPasswordAsync(int userId, string newPassword)
+    {
+        _ = await _userRepo.GetByIdAsync(userId)
+            ?? throw new KeyNotFoundException($"User {userId} not found.");
+
+        await _userRepo.UpdatePasswordAsync(userId, BCrypt.Net.BCrypt.HashPassword(newPassword, workFactor: 12));
     }
 
     private static UserDto MapToDto(User u) => new()

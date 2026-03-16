@@ -71,6 +71,8 @@ public class StatisticsService : IStatisticsService
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
 
+        string typeFilter = !string.IsNullOrEmpty(type) ? "AND t.Type = @Type" : "";
+
         string sql = $"""
             SELECT
                 t.CategoryId,
@@ -84,6 +86,9 @@ public class StatisticsService : IStatisticsService
             WHERE t.UserId = @UserId
               AND {_dialect.Month("t.Date")} = @Month
               AND {_dialect.Year("t.Date")} = @Year
+              {typeFilter}
+            GROUP BY t.CategoryId, c.Name, c.Color, t.Type
+            ORDER BY Total DESC
             """;
 
         DynamicParameters parameters = new DynamicParameters();
@@ -93,11 +98,8 @@ public class StatisticsService : IStatisticsService
 
         if (!string.IsNullOrEmpty(type))
         {
-            sql += " AND t.Type = @Type";
             parameters.Add("Type", type);
         }
-
-        sql += " GROUP BY t.CategoryId, c.Name, c.Color, t.Type ORDER BY Total DESC";
 
         return await conn.QueryAsync<CategoryStatDto>(sql, parameters);
     }

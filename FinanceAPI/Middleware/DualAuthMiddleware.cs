@@ -19,7 +19,7 @@ public class DualAuthMiddleware
     {
         // Only attempt API key auth if no Authorization header is present
         if (!context.Request.Headers.ContainsKey("Authorization")
-            && context.Request.Query.TryGetValue("apiKey", out StringValues rawKey)
+            && context.Request.Headers.TryGetValue("X-Api-Key", out StringValues rawKey)
             && !string.IsNullOrEmpty(rawKey))
         {
             byte[] hashBytes = System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(rawKey!));
@@ -29,7 +29,7 @@ public class DualAuthMiddleware
             if (apiKey is not null)
             {
                 User? user = await userRepo.GetByIdAsync(apiKey.UserId);
-                if (user is not null)
+                if (user is not null && user.IsActive)
                 {
                     Claim[] claims = new[]
                     {

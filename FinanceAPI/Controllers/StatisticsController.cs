@@ -1,4 +1,4 @@
-using System.Security.Claims;
+using System.ComponentModel.DataAnnotations;
 using FinanceAPI.DTOs.Statistics;
 using FinanceAPI.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -9,7 +9,7 @@ namespace FinanceAPI.Controllers;
 [ApiController]
 [Route("api/statistics")]
 [Authorize]
-public class StatisticsController : ControllerBase
+public class StatisticsController : AuthenticatedControllerBase
 {
     private readonly IStatisticsService _statisticsService;
 
@@ -17,8 +17,6 @@ public class StatisticsController : ControllerBase
     {
         _statisticsService = statisticsService;
     }
-
-    private int UserId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
     [HttpGet("years")]
     public async Task<ActionResult<IEnumerable<int>>> GetAvailableYears()
@@ -28,7 +26,7 @@ public class StatisticsController : ControllerBase
 
     [HttpGet("monthly")]
     public async Task<ActionResult<IEnumerable<MonthlyStatDto>>> GetMonthly(
-        [FromQuery] int year = 0)
+        [FromQuery][Range(1900, 2100)] int year = 0)
     {
         if (year == 0)
         {
@@ -40,9 +38,9 @@ public class StatisticsController : ControllerBase
 
     [HttpGet("categories")]
     public async Task<ActionResult<IEnumerable<CategoryStatDto>>> GetByCategory(
-        [FromQuery] int month = 0,
-        [FromQuery] int year = 0,
-        [FromQuery] string? type = null)
+        [FromQuery][Range(1, 12)] int month = 0,
+        [FromQuery][Range(1900, 2100)] int year = 0,
+        [FromQuery][RegularExpression("^(income|expense)$", ErrorMessage = "type must be 'income' or 'expense'.")] string? type = null)
     {
         if (month == 0)
         {

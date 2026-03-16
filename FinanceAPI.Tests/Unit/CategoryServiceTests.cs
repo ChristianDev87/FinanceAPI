@@ -166,6 +166,9 @@ public class CategoryServiceTests
     [Fact]
     public async Task ReorderAsync_ValidRequest_CallsRepositoryReorder()
     {
+        _repo.Setup(r => r.GetByUserIdAsync(1))
+             .ReturnsAsync(new[] { MakeCat(1, 1), MakeCat(2, 1, "Transport") });
+
         ReorderCategoriesRequest request = new ReorderCategoriesRequest
         {
             Items = new List<ReorderCategoriesRequest.CategoryOrderItem>

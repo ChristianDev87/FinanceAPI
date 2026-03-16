@@ -27,24 +27,29 @@ public class ErrorHandlingMiddleware
 
     private async Task HandleExceptionAsync(HttpContext context, Exception ex)
     {
-        (int statusCode, string? message) = ex switch
+        int statusCode = ex switch
         {
-            UnauthorizedAccessException => (StatusCodes.Status401Unauthorized, ex.Message),
-            KeyNotFoundException => (StatusCodes.Status404NotFound, ex.Message),
-            InvalidOperationException => (StatusCodes.Status400BadRequest, ex.Message),
-            ArgumentException => (StatusCodes.Status400BadRequest, ex.Message),
-            _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred.")
+            UnauthorizedAccessException => StatusCodes.Status401Unauthorized,
+            KeyNotFoundException => StatusCodes.Status404NotFound,
+            InvalidOperationException => StatusCodes.Status400BadRequest,
+            ArgumentException => StatusCodes.Status400BadRequest,
+            _ => StatusCodes.Status500InternalServerError
         };
 
-        if (statusCode == 500)
+        string message = statusCode == StatusCodes.Status500InternalServerError
+            ? "An unexpected error occurred."
+            : ex.Message;
+
+        if (statusCode == StatusCodes.Status500InternalServerError)
         {
-            _logger.LogError(ex, "Unhandled exception");
+            string errorId = Guid.NewGuid().ToString("N")[..8];
+            _logger.LogError(ex, "Unhandled exception [{ErrorId}]", errorId);
+            message = $"An unexpected error occurred. Reference: {errorId}";
         }
 
         context.Response.ContentType = "application/json";
         context.Response.StatusCode = statusCode;
 
-        var response = new { error = message, statusCode };
-        await context.Response.WriteAsync(JsonSerializer.Serialize(response));
+        await context.Response.WriteAsync(JsonSerializer.Serialize(new { error = message, statusCode }));
     }
 }

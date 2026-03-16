@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using FinanceAPI.DTOs.Categories;
 using FinanceAPI.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -9,7 +8,7 @@ namespace FinanceAPI.Controllers;
 [ApiController]
 [Route("api/categories")]
 [Authorize]
-public class CategoriesController : ControllerBase
+public class CategoriesController : AuthenticatedControllerBase
 {
     private readonly ICategoryService _categoryService;
 
@@ -17,8 +16,6 @@ public class CategoriesController : ControllerBase
     {
         _categoryService = categoryService;
     }
-
-    private int UserId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<CategoryDto>>> GetAll()

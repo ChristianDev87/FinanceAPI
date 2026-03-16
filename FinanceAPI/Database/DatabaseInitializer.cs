@@ -86,8 +86,14 @@ public class DatabaseInitializer
                         _logger.LogDebug("Statement skipped (already exists): {Message}", ex.Message);
                         break;
                     }
-                    catch (Exception ex) when (IsDeadlockError(ex, normalizedProvider) && attempt < maxAttempts)
+                    catch (Exception ex) when (IsDeadlockError(ex, normalizedProvider))
                     {
+                        if (attempt >= maxAttempts)
+                        {
+                            _logger.LogError(ex, "Schema initialization failed after {Max} deadlock retries.", maxAttempts);
+                            throw;
+                        }
+
                         _logger.LogWarning("Deadlock on schema init attempt {Attempt}/{Max}, retrying in {Delay}ms...",
                             attempt, maxAttempts, 200 * attempt);
                         await Task.Delay(200 * attempt);
