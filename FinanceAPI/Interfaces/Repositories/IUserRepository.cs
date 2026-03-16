@@ -14,4 +14,5 @@ public interface IUserRepository
     Task UpdatePasswordAsync(int id, string passwordHash);
     Task SetActiveAsync(int id, bool isActive);
     Task DeleteAsync(int id);
+    Task<int> CountActiveAdminsAsync();
 }

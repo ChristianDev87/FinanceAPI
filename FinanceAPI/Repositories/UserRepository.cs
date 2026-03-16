@@ -89,4 +89,12 @@ public class UserRepository : IUserRepository
         using IDbConnection conn = _connectionFactory.CreateConnection();
         await conn.ExecuteAsync("DELETE FROM Users WHERE Id = @Id", new { Id = id });
     }
+
+    public async Task<int> CountActiveAdminsAsync()
+    {
+        using IDbConnection conn = _connectionFactory.CreateConnection();
+        return await conn.ExecuteScalarAsync<int>(
+            "SELECT COUNT(1) FROM Users WHERE RoleName = 'Admin' AND IsActive = @IsActive",
+            new { IsActive = true });
+    }
 }

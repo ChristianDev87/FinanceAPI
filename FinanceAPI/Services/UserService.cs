@@ -49,6 +49,13 @@ public class UserService : IUserService
             throw new ArgumentException("Email already in use.");
         }
 
+        if (allowRoleChange && user.RoleName == "Admin" && request.Role != "Admin")
+        {
+            int activeAdmins = await _userRepo.CountActiveAdminsAsync();
+            if (activeAdmins <= 1)
+                throw new InvalidOperationException("Cannot demote the last active admin.");
+        }
+
         user.Username = request.Username;
         user.Email = request.Email;
         user.RoleName = allowRoleChange ? request.Role : user.RoleName;
@@ -61,13 +68,29 @@ public class UserService : IUserService
     {
         User user = await _userRepo.GetByIdAsync(id)
                    ?? throw new KeyNotFoundException($"User {id} not found.");
+
+        if (user.RoleName == "Admin" && user.IsActive)
+        {
+            int activeAdmins = await _userRepo.CountActiveAdminsAsync();
+            if (activeAdmins <= 1)
+                throw new InvalidOperationException("Cannot delete the last active admin.");
+        }
+
         await _userRepo.DeleteAsync(user.Id);
     }
 
     public async Task SetActiveAsync(int id, bool isActive)
     {
-        _ = await _userRepo.GetByIdAsync(id)
+        User user = await _userRepo.GetByIdAsync(id)
             ?? throw new KeyNotFoundException($"User {id} not found.");
+
+        if (!isActive && user.RoleName == "Admin")
+        {
+            int activeAdmins = await _userRepo.CountActiveAdminsAsync();
+            if (activeAdmins <= 1)
+                throw new InvalidOperationException("Cannot deactivate the last active admin.");
+        }
+
         await _userRepo.SetActiveAsync(id, isActive);
     }
 
