@@ -128,28 +128,44 @@ builder.Services.AddScoped<ITransactionService, TransactionService>();
 builder.Services.AddScoped<IStatisticsService, StatisticsService>();
 
 // ── JWT Auth ────────────────────────────────────────────────────
-IConfigurationSection jwtSettings = builder.Configuration.GetSection("JwtSettings");
-
-string jwtSecretKey = jwtSettings["SecretKey"]
-    ?? throw new InvalidOperationException("JwtSettings:SecretKey is not configured.");
-
-if (jwtSecretKey.Length < 32)
+// Fast startup validation — skipped in Testing because the factory supplies the key
+// via IConfiguration after Program.cs has already run.
+if (!builder.Environment.IsEnvironment("Testing"))
 {
-    throw new InvalidOperationException("JwtSettings:SecretKey must be at least 32 characters long.");
+    string startupKey = builder.Configuration["JwtSettings:SecretKey"]
+        ?? throw new InvalidOperationException("JwtSettings:SecretKey is not configured.");
+    if (startupKey.Length < 32)
+    {
+        throw new InvalidOperationException("JwtSettings:SecretKey must be at least 32 characters long.");
+    }
 }
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
+    .AddJwtBearer();
+
+// Resolve TokenValidationParameters from the DI IConfiguration so that
+// WebApplicationFactory config overrides are applied before the key is read.
+// This keeps the validation key in sync with AuthService.GenerateToken().
+builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+    .Configure<IConfiguration>((options, config) =>
     {
+        IConfigurationSection jwt = config.GetSection("JwtSettings");
+        string key = jwt["SecretKey"]
+            ?? throw new InvalidOperationException("JwtSettings:SecretKey is not configured.");
+        if (key.Length < 32)
+        {
+            throw new InvalidOperationException("JwtSettings:SecretKey must be at least 32 characters long.");
+        }
+
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = jwtSettings["Issuer"],
-            ValidAudience = jwtSettings["Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecretKey)) { KeyId = "finance-api-key" }
+            ValidIssuer = jwt["Issuer"],
+            ValidAudience = jwt["Audience"],
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key)) { KeyId = "finance-api-key" }
         };
     });
 
