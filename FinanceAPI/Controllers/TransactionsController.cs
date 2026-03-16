@@ -23,34 +23,35 @@ public class TransactionsController : AuthenticatedControllerBase
         [FromQuery] int? month,
         [FromQuery] int? year,
         [FromQuery] int? categoryId,
-        [FromQuery][RegularExpression("^(income|expense)$", ErrorMessage = "type must be 'income' or 'expense'.")] string? type)
+        [FromQuery][RegularExpression("^(income|expense)$", ErrorMessage = "type must be 'income' or 'expense'.")] string? type,
+        CancellationToken cancellationToken)
     {
-        return Ok(await _transactionService.GetAllAsync(UserId, month, year, categoryId, type));
+        return Ok(await _transactionService.GetAllAsync(UserId, month, year, categoryId, type, cancellationToken));
     }
 
     [HttpGet("{id:int}")]
-    public async Task<ActionResult<TransactionDto>> GetById(int id)
+    public async Task<ActionResult<TransactionDto>> GetById(int id, CancellationToken cancellationToken)
     {
-        return Ok(await _transactionService.GetByIdAsync(UserId, id));
+        return Ok(await _transactionService.GetByIdAsync(UserId, id, cancellationToken));
     }
 
     [HttpPost]
-    public async Task<ActionResult<TransactionDto>> Create([FromBody] CreateTransactionRequest request)
+    public async Task<ActionResult<TransactionDto>> Create([FromBody] CreateTransactionRequest request, CancellationToken cancellationToken)
     {
-        TransactionDto result = await _transactionService.CreateAsync(UserId, request);
+        TransactionDto result = await _transactionService.CreateAsync(UserId, request, cancellationToken);
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
 
     [HttpPut("{id:int}")]
-    public async Task<ActionResult<TransactionDto>> Update(int id, [FromBody] UpdateTransactionRequest request)
+    public async Task<ActionResult<TransactionDto>> Update(int id, [FromBody] UpdateTransactionRequest request, CancellationToken cancellationToken)
     {
-        return Ok(await _transactionService.UpdateAsync(UserId, id, request));
+        return Ok(await _transactionService.UpdateAsync(UserId, id, request, cancellationToken));
     }
 
     [HttpDelete("{id:int}")]
-    public async Task<IActionResult> Delete(int id)
+    public async Task<IActionResult> Delete(int id, CancellationToken cancellationToken)
     {
-        await _transactionService.DeleteAsync(UserId, id);
+        await _transactionService.DeleteAsync(UserId, id, cancellationToken);
         return NoContent();
     }
 }

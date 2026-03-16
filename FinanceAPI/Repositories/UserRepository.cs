@@ -18,42 +18,55 @@ public class UserRepository : IUserRepository
         _dialect = dialect;
     }
 
-    public async Task<User?> GetByIdAsync(int id)
+    public async Task<User?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
         return await conn.QuerySingleOrDefaultAsync<User>(
-            "SELECT * FROM Users WHERE Id = @Id", new { Id = id });
+            new CommandDefinition(
+                "SELECT * FROM Users WHERE Id = @Id",
+                new { Id = id },
+                cancellationToken: cancellationToken));
     }
 
-    public async Task<User?> GetByUsernameAsync(string username)
+    public async Task<User?> GetByUsernameAsync(string username, CancellationToken cancellationToken = default)
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
         return await conn.QuerySingleOrDefaultAsync<User>(
-            $"SELECT * FROM Users WHERE {_dialect.CaseInsensitiveEqual("Username", "@Username")}",
-            new { Username = username });
+            new CommandDefinition(
+                $"SELECT * FROM Users WHERE {_dialect.CaseInsensitiveEqual("Username", "@Username")}",
+                new { Username = username },
+                cancellationToken: cancellationToken));
     }
 
-    public async Task<User?> GetByEmailAsync(string email)
+    public async Task<User?> GetByEmailAsync(string email, CancellationToken cancellationToken = default)
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
         return await conn.QuerySingleOrDefaultAsync<User>(
-            $"SELECT * FROM Users WHERE {_dialect.CaseInsensitiveEqual("Email", "@Email")}",
-            new { Email = email });
+            new CommandDefinition(
+                $"SELECT * FROM Users WHERE {_dialect.CaseInsensitiveEqual("Email", "@Email")}",
+                new { Email = email },
+                cancellationToken: cancellationToken));
     }
 
-    public async Task<IEnumerable<User>> GetAllAsync()
+    public async Task<IEnumerable<User>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
-        return await conn.QueryAsync<User>("SELECT * FROM Users ORDER BY CreatedAt DESC");
+        return await conn.QueryAsync<User>(
+            new CommandDefinition(
+                "SELECT * FROM Users ORDER BY CreatedAt DESC",
+                cancellationToken: cancellationToken));
     }
 
-    public async Task<bool> AnyAsync()
+    public async Task<bool> AnyAsync(CancellationToken cancellationToken = default)
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
-        return await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM Users") > 0;
+        return await conn.ExecuteScalarAsync<int>(
+            new CommandDefinition(
+                "SELECT COUNT(1) FROM Users",
+                cancellationToken: cancellationToken)) > 0;
     }
 
-    public async Task<int> CreateAsync(User user)
+    public async Task<int> CreateAsync(User user, CancellationToken cancellationToken = default)
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
         return await _dialect.InsertAsync(conn,
@@ -66,41 +79,53 @@ public class UserRepository : IUserRepository
             "INSERT INTO Users (Username, Email, PasswordHash, RoleName) VALUES (@Username, @Email, @PasswordHash, @RoleName)",
             user, txn);
 
-    public async Task UpdateAsync(User user)
+    public async Task UpdateAsync(User user, CancellationToken cancellationToken = default)
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
         await conn.ExecuteAsync(
-            "UPDATE Users SET Username = @Username, Email = @Email, RoleName = @RoleName WHERE Id = @Id",
-            user);
+            new CommandDefinition(
+                "UPDATE Users SET Username = @Username, Email = @Email, RoleName = @RoleName WHERE Id = @Id",
+                user,
+                cancellationToken: cancellationToken));
     }
 
-    public async Task UpdatePasswordAsync(int id, string passwordHash)
+    public async Task UpdatePasswordAsync(int id, string passwordHash, CancellationToken cancellationToken = default)
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
         await conn.ExecuteAsync(
-            "UPDATE Users SET PasswordHash = @PasswordHash WHERE Id = @Id",
-            new { Id = id, PasswordHash = passwordHash });
+            new CommandDefinition(
+                "UPDATE Users SET PasswordHash = @PasswordHash WHERE Id = @Id",
+                new { Id = id, PasswordHash = passwordHash },
+                cancellationToken: cancellationToken));
     }
 
-    public async Task SetActiveAsync(int id, bool isActive)
+    public async Task SetActiveAsync(int id, bool isActive, CancellationToken cancellationToken = default)
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
         await conn.ExecuteAsync(
-            "UPDATE Users SET IsActive = @IsActive WHERE Id = @Id",
-            new { Id = id, IsActive = isActive });
+            new CommandDefinition(
+                "UPDATE Users SET IsActive = @IsActive WHERE Id = @Id",
+                new { Id = id, IsActive = isActive },
+                cancellationToken: cancellationToken));
     }
 
-    public async Task DeleteAsync(int id)
+    public async Task DeleteAsync(int id, CancellationToken cancellationToken = default)
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
-        await conn.ExecuteAsync("DELETE FROM Users WHERE Id = @Id", new { Id = id });
+        await conn.ExecuteAsync(
+            new CommandDefinition(
+                "DELETE FROM Users WHERE Id = @Id",
+                new { Id = id },
+                cancellationToken: cancellationToken));
     }
 
-    public async Task<int> CountActiveAdminsAsync()
+    public async Task<int> CountActiveAdminsAsync(CancellationToken cancellationToken = default)
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
         return await conn.ExecuteScalarAsync<int>(
-            "SELECT COUNT(1) FROM Users WHERE RoleName = @RoleName AND IsActive = @IsActive",
-            new { RoleName = UserRoles.Admin, IsActive = true });
+            new CommandDefinition(
+                "SELECT COUNT(1) FROM Users WHERE RoleName = @RoleName AND IsActive = @IsActive",
+                new { RoleName = UserRoles.Admin, IsActive = true },
+                cancellationToken: cancellationToken));
     }
 }

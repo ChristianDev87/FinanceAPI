@@ -25,10 +25,10 @@ public class DualAuthMiddleware
             byte[] hashBytes = System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(rawKey!));
             string keyHash = Convert.ToHexString(hashBytes).ToLowerInvariant();
 
-            ApiKey? apiKey = await apiKeyRepo.GetByHashAsync(keyHash);
+            ApiKey? apiKey = await apiKeyRepo.GetByHashAsync(keyHash, context.RequestAborted);
             if (apiKey is not null)
             {
-                User? user = await userRepo.GetByIdAsync(apiKey.UserId);
+                User? user = await userRepo.GetByIdAsync(apiKey.UserId, context.RequestAborted);
                 if (user is not null && user.IsActive)
                 {
                     Claim[] claims = new[]

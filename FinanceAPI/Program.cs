@@ -209,7 +209,7 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
                 IUserRepository userRepo = context.HttpContext.RequestServices
                     .GetRequiredService<IUserRepository>();
 
-                User? user = await userRepo.GetByIdAsync(userId);
+                User? user = await userRepo.GetByIdAsync(userId, context.HttpContext.RequestAborted);
                 if (user is null || !user.IsActive)
                 {
                     context.Fail("User account is disabled or does not exist.");

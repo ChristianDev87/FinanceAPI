@@ -28,32 +28,32 @@ public class UserService : IUserService
         _connectionFactory = connectionFactory;
     }
 
-    public async Task<IEnumerable<UserDto>> GetAllAsync()
+    public async Task<IEnumerable<UserDto>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        IEnumerable<User> users = await _userRepo.GetAllAsync();
+        IEnumerable<User> users = await _userRepo.GetAllAsync(cancellationToken);
         return users.Select(MapToDto);
     }
 
-    public async Task<UserDto> GetByIdAsync(int id)
+    public async Task<UserDto> GetByIdAsync(int id, CancellationToken cancellationToken = default)
     {
-        User user = await _userRepo.GetByIdAsync(id)
+        User user = await _userRepo.GetByIdAsync(id, cancellationToken)
                    ?? throw new KeyNotFoundException($"User {id} not found.");
         return MapToDto(user);
     }
 
-    public async Task<UserDto> UpdateAsync(int id, UpdateUserRequest request, bool allowRoleChange = false)
+    public async Task<UserDto> UpdateAsync(int id, UpdateUserRequest request, bool allowRoleChange = false, CancellationToken cancellationToken = default)
     {
-        User user = await _userRepo.GetByIdAsync(id)
+        User user = await _userRepo.GetByIdAsync(id, cancellationToken)
                    ?? throw new KeyNotFoundException($"User {id} not found.");
 
         // Check username uniqueness (excluding current user)
-        User? existing = await _userRepo.GetByUsernameAsync(request.Username);
+        User? existing = await _userRepo.GetByUsernameAsync(request.Username, cancellationToken);
         if (existing is not null && existing.Id != id)
         {
             throw new ArgumentException("Username already taken.");
         }
 
-        User? existingEmail = await _userRepo.GetByEmailAsync(request.Email);
+        User? existingEmail = await _userRepo.GetByEmailAsync(request.Email, cancellationToken);
         if (existingEmail is not null && existingEmail.Id != id)
         {
             throw new ArgumentException("Email already in use.");
@@ -61,10 +61,10 @@ public class UserService : IUserService
 
         if (allowRoleChange && user.RoleName == UserRoles.Admin && user.IsActive && request.Role != UserRoles.Admin)
         {
-            await _adminMutationLock.WaitAsync();
+            await _adminMutationLock.WaitAsync(cancellationToken);
             try
             {
-                int activeAdmins = await _userRepo.CountActiveAdminsAsync();
+                int activeAdmins = await _userRepo.CountActiveAdminsAsync(cancellationToken);
                 if (activeAdmins <= 1)
                 {
                     throw new InvalidOperationException("Cannot demote the last active admin.");
@@ -73,7 +73,7 @@ public class UserService : IUserService
                 user.Username = request.Username;
                 user.Email = request.Email;
                 user.RoleName = request.Role;
-                await _userRepo.UpdateAsync(user);
+                await _userRepo.UpdateAsync(user, cancellationToken);
             }
             finally
             {
@@ -87,27 +87,27 @@ public class UserService : IUserService
         user.Email = request.Email;
         user.RoleName = allowRoleChange ? request.Role : user.RoleName;
 
-        await _userRepo.UpdateAsync(user);
+        await _userRepo.UpdateAsync(user, cancellationToken);
         return MapToDto(user);
     }
 
-    public async Task DeleteAsync(int id)
+    public async Task DeleteAsync(int id, CancellationToken cancellationToken = default)
     {
-        User user = await _userRepo.GetByIdAsync(id)
+        User user = await _userRepo.GetByIdAsync(id, cancellationToken)
                    ?? throw new KeyNotFoundException($"User {id} not found.");
 
         if (user.RoleName == UserRoles.Admin && user.IsActive)
         {
-            await _adminMutationLock.WaitAsync();
+            await _adminMutationLock.WaitAsync(cancellationToken);
             try
             {
-                int activeAdmins = await _userRepo.CountActiveAdminsAsync();
+                int activeAdmins = await _userRepo.CountActiveAdminsAsync(cancellationToken);
                 if (activeAdmins <= 1)
                 {
                     throw new InvalidOperationException("Cannot delete the last active admin.");
                 }
 
-                await _userRepo.DeleteAsync(user.Id);
+                await _userRepo.DeleteAsync(user.Id, cancellationToken);
             }
             finally
             {
@@ -117,26 +117,26 @@ public class UserService : IUserService
             return;
         }
 
-        await _userRepo.DeleteAsync(user.Id);
+        await _userRepo.DeleteAsync(user.Id, cancellationToken);
     }
 
-    public async Task SetActiveAsync(int id, bool isActive)
+    public async Task SetActiveAsync(int id, bool isActive, CancellationToken cancellationToken = default)
     {
-        User user = await _userRepo.GetByIdAsync(id)
+        User user = await _userRepo.GetByIdAsync(id, cancellationToken)
             ?? throw new KeyNotFoundException($"User {id} not found.");
 
         if (!isActive && user.RoleName == UserRoles.Admin && user.IsActive)
         {
-            await _adminMutationLock.WaitAsync();
+            await _adminMutationLock.WaitAsync(cancellationToken);
             try
             {
-                int activeAdmins = await _userRepo.CountActiveAdminsAsync();
+                int activeAdmins = await _userRepo.CountActiveAdminsAsync(cancellationToken);
                 if (activeAdmins <= 1)
                 {
                     throw new InvalidOperationException("Cannot deactivate the last active admin.");
                 }
 
-                await _userRepo.SetActiveAsync(id, isActive);
+                await _userRepo.SetActiveAsync(id, isActive, cancellationToken);
             }
             finally
             {
@@ -146,12 +146,12 @@ public class UserService : IUserService
             return;
         }
 
-        await _userRepo.SetActiveAsync(id, isActive);
+        await _userRepo.SetActiveAsync(id, isActive, cancellationToken);
     }
 
-    public async Task<ApiKeyCreatedResponse> CreateApiKeyAsync(int userId, string keyName, int? createdByAdminId = null)
+    public async Task<ApiKeyCreatedResponse> CreateApiKeyAsync(int userId, string keyName, int? createdByAdminId = null, CancellationToken cancellationToken = default)
     {
-        _ = await _userRepo.GetByIdAsync(userId)
+        _ = await _userRepo.GetByIdAsync(userId, cancellationToken)
             ?? throw new KeyNotFoundException($"User {userId} not found.");
 
         byte[] rawBytes = RandomNumberGenerator.GetBytes(32);
@@ -192,7 +192,7 @@ public class UserService : IUserService
             }
         }
 
-        ApiKey created = await _apiKeyRepo.GetByIdAsync(newKeyId)
+        ApiKey created = await _apiKeyRepo.GetByIdAsync(newKeyId, cancellationToken)
                         ?? throw new InvalidOperationException($"Failed to retrieve newly created API key {newKeyId}.");
 
         return new ApiKeyCreatedResponse
@@ -204,12 +204,12 @@ public class UserService : IUserService
         };
     }
 
-    public async Task<IEnumerable<ApiKeyDto>> GetApiKeysAsync(int userId)
+    public async Task<IEnumerable<ApiKeyDto>> GetApiKeysAsync(int userId, CancellationToken cancellationToken = default)
     {
-        _ = await _userRepo.GetByIdAsync(userId)
+        _ = await _userRepo.GetByIdAsync(userId, cancellationToken)
             ?? throw new KeyNotFoundException($"User {userId} not found.");
 
-        IEnumerable<ApiKey> keys = await _apiKeyRepo.GetByUserIdAsync(userId);
+        IEnumerable<ApiKey> keys = await _apiKeyRepo.GetByUserIdAsync(userId, cancellationToken);
         return keys.Select(k => new ApiKeyDto
         {
             Id = k.Id,
@@ -221,9 +221,9 @@ public class UserService : IUserService
         });
     }
 
-    public async Task RevokeApiKeyAsync(int userId, int keyId)
+    public async Task RevokeApiKeyAsync(int userId, int keyId, CancellationToken cancellationToken = default)
     {
-        ApiKey key = await _apiKeyRepo.GetByIdAsync(keyId)
+        ApiKey key = await _apiKeyRepo.GetByIdAsync(keyId, cancellationToken)
                   ?? throw new KeyNotFoundException($"API key {keyId} not found.");
 
         if (key.UserId != userId)
@@ -231,12 +231,12 @@ public class UserService : IUserService
             throw new UnauthorizedAccessException("API key does not belong to this user.");
         }
 
-        await _apiKeyRepo.DeactivateAsync(keyId);
+        await _apiKeyRepo.DeactivateAsync(keyId, cancellationToken);
     }
 
-    public async Task ChangePasswordAsync(int userId, string currentPassword, string newPassword)
+    public async Task ChangePasswordAsync(int userId, string currentPassword, string newPassword, CancellationToken cancellationToken = default)
     {
-        User user = await _userRepo.GetByIdAsync(userId)
+        User user = await _userRepo.GetByIdAsync(userId, cancellationToken)
                    ?? throw new KeyNotFoundException($"User {userId} not found.");
 
         if (!BCrypt.Net.BCrypt.Verify(currentPassword, user.PasswordHash))
@@ -244,15 +244,15 @@ public class UserService : IUserService
             throw new UnauthorizedAccessException("Current password is incorrect.");
         }
 
-        await _userRepo.UpdatePasswordAsync(userId, BCrypt.Net.BCrypt.HashPassword(newPassword, workFactor: 12));
+        await _userRepo.UpdatePasswordAsync(userId, BCrypt.Net.BCrypt.HashPassword(newPassword, workFactor: 12), cancellationToken);
     }
 
-    public async Task AdminSetPasswordAsync(int userId, string newPassword)
+    public async Task AdminSetPasswordAsync(int userId, string newPassword, CancellationToken cancellationToken = default)
     {
-        _ = await _userRepo.GetByIdAsync(userId)
+        _ = await _userRepo.GetByIdAsync(userId, cancellationToken)
             ?? throw new KeyNotFoundException($"User {userId} not found.");
 
-        await _userRepo.UpdatePasswordAsync(userId, BCrypt.Net.BCrypt.HashPassword(newPassword, workFactor: 12));
+        await _userRepo.UpdatePasswordAsync(userId, BCrypt.Net.BCrypt.HashPassword(newPassword, workFactor: 12), cancellationToken);
     }
 
     private static UserDto MapToDto(User u) => new()

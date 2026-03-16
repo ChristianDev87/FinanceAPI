@@ -15,15 +15,15 @@ public class CategoryService : ICategoryService
         _categoryRepo = categoryRepo;
     }
 
-    public async Task<IEnumerable<CategoryDto>> GetAllAsync(int userId)
+    public async Task<IEnumerable<CategoryDto>> GetAllAsync(int userId, CancellationToken cancellationToken = default)
     {
-        IEnumerable<Category> categories = await _categoryRepo.GetByUserIdAsync(userId);
+        IEnumerable<Category> categories = await _categoryRepo.GetByUserIdAsync(userId, cancellationToken);
         return categories.Select(MapToDto);
     }
 
-    public async Task<CategoryDto> CreateAsync(int userId, CreateCategoryRequest request)
+    public async Task<CategoryDto> CreateAsync(int userId, CreateCategoryRequest request, CancellationToken cancellationToken = default)
     {
-        if (await _categoryRepo.GetByUserIdAndNameAsync(userId, request.Name) is not null)
+        if (await _categoryRepo.GetByUserIdAndNameAsync(userId, request.Name, cancellationToken) is not null)
         {
             throw new ConflictException($"A category named '{request.Name}' already exists.");
         }
@@ -37,14 +37,14 @@ public class CategoryService : ICategoryService
             SortOrder = request.SortOrder
         };
 
-        int id = await _categoryRepo.CreateAsync(category);
+        int id = await _categoryRepo.CreateAsync(category, cancellationToken);
         category.Id = id;
         return MapToDto(category);
     }
 
-    public async Task<CategoryDto> UpdateAsync(int userId, int categoryId, UpdateCategoryRequest request)
+    public async Task<CategoryDto> UpdateAsync(int userId, int categoryId, UpdateCategoryRequest request, CancellationToken cancellationToken = default)
     {
-        Category category = await _categoryRepo.GetByIdAsync(categoryId)
+        Category category = await _categoryRepo.GetByIdAsync(categoryId, cancellationToken)
                        ?? throw new KeyNotFoundException($"Category {categoryId} not found.");
 
         if (category.UserId != userId)
@@ -54,7 +54,7 @@ public class CategoryService : ICategoryService
 
         if (!string.Equals(category.Name, request.Name, StringComparison.OrdinalIgnoreCase))
         {
-            Category? duplicate = await _categoryRepo.GetByUserIdAndNameAsync(userId, request.Name);
+            Category? duplicate = await _categoryRepo.GetByUserIdAndNameAsync(userId, request.Name, cancellationToken);
             if (duplicate is not null && duplicate.Id != categoryId)
             {
                 throw new ConflictException($"A category named '{request.Name}' already exists.");
@@ -62,7 +62,7 @@ public class CategoryService : ICategoryService
         }
 
         if (!string.Equals(category.Type, request.Type, StringComparison.OrdinalIgnoreCase)
-            && await _categoryRepo.HasTransactionsAsync(categoryId))
+            && await _categoryRepo.HasTransactionsAsync(categoryId, cancellationToken))
         {
             throw new InvalidOperationException("Cannot change the type of a category that has existing transactions.");
         }
@@ -72,13 +72,13 @@ public class CategoryService : ICategoryService
         category.Type = request.Type;
         category.SortOrder = request.SortOrder;
 
-        await _categoryRepo.UpdateAsync(category);
+        await _categoryRepo.UpdateAsync(category, cancellationToken);
         return MapToDto(category);
     }
 
-    public async Task DeleteAsync(int userId, int categoryId)
+    public async Task DeleteAsync(int userId, int categoryId, CancellationToken cancellationToken = default)
     {
-        Category category = await _categoryRepo.GetByIdAsync(categoryId)
+        Category category = await _categoryRepo.GetByIdAsync(categoryId, cancellationToken)
                        ?? throw new KeyNotFoundException($"Category {categoryId} not found.");
 
         if (category.UserId != userId)
@@ -86,18 +86,18 @@ public class CategoryService : ICategoryService
             throw new UnauthorizedAccessException("Category does not belong to you.");
         }
 
-        if (await _categoryRepo.HasTransactionsAsync(categoryId))
+        if (await _categoryRepo.HasTransactionsAsync(categoryId, cancellationToken))
         {
             throw new InvalidOperationException("Cannot delete a category that has transactions. Reassign or delete the transactions first.");
         }
 
-        await _categoryRepo.DeleteAsync(categoryId);
+        await _categoryRepo.DeleteAsync(categoryId, cancellationToken);
     }
 
-    public async Task ReorderAsync(int userId, ReorderCategoriesRequest request)
+    public async Task ReorderAsync(int userId, ReorderCategoriesRequest request, CancellationToken cancellationToken = default)
     {
         HashSet<int> userCategoryIds = new HashSet<int>(
-            (await _categoryRepo.GetByUserIdAsync(userId)).Select(c => c.Id));
+            (await _categoryRepo.GetByUserIdAsync(userId, cancellationToken)).Select(c => c.Id));
 
         foreach (ReorderCategoriesRequest.CategoryOrderItem item in request.Items)
         {
@@ -108,7 +108,7 @@ public class CategoryService : ICategoryService
         }
 
         IEnumerable<(int Id, int SortOrder)> items = request.Items.Select(i => (i.Id, i.SortOrder));
-        await _categoryRepo.ReorderAsync(userId, items);
+        await _categoryRepo.ReorderAsync(userId, items, cancellationToken);
     }
 
     private static CategoryDto MapToDto(Category c) => new()
