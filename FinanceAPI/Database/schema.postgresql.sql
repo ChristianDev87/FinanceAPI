@@ -35,8 +35,7 @@ CREATE TABLE IF NOT EXISTS Categories (
     Name      TEXT NOT NULL,
     Color     TEXT NOT NULL DEFAULT '#1abc9c',
     Type      TEXT NOT NULL CHECK (Type IN ('income', 'expense')),
-    SortOrder INTEGER NOT NULL DEFAULT 0,
-    UNIQUE (UserId, Name)
+    SortOrder INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS Transactions (
@@ -53,3 +52,6 @@ CREATE TABLE IF NOT EXISTS Transactions (
 CREATE INDEX IF NOT EXISTS idx_transactions_user_date ON Transactions (UserId, Date);
 CREATE INDEX IF NOT EXISTS idx_categories_user        ON Categories (UserId);
 CREATE INDEX IF NOT EXISTS idx_apikeys_hash           ON ApiKeys (KeyHash);
+
+-- Case-insensitive uniqueness for category names per user
+CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_user_name_lower ON Categories (UserId, LOWER(Name));

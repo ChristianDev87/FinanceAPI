@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS Categories (
     Color     TEXT NOT NULL DEFAULT '#1abc9c',
     Type      TEXT NOT NULL CHECK(Type IN ('income', 'expense')),
     SortOrder INTEGER NOT NULL DEFAULT 0,
-    UNIQUE(UserId, Name)
+    UNIQUE(UserId, Name COLLATE NOCASE)
 );
 
 CREATE TABLE IF NOT EXISTS Transactions (
@@ -51,3 +51,6 @@ CREATE INDEX IF NOT EXISTS idx_apikeys_hash           ON ApiKeys(KeyHash);
 
 -- Migration: add IsActive column to Users (ignored if already exists)
 ALTER TABLE Users ADD COLUMN IsActive INTEGER NOT NULL DEFAULT 1;
+
+-- Migration: enforce case-insensitive uniqueness for category names (ignored if already exists)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_user_name_nocase ON Categories (UserId, Name COLLATE NOCASE);

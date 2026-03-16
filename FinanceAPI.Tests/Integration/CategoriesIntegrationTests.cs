@@ -174,6 +174,54 @@ public class CategoriesIntegrationTests : IClassFixture<FinanceApiFactory>
     }
 
     [Fact]
+    public async Task Create_DuplicateName_Returns409()
+    {
+        HttpClient client = await TestHelpers.CreateAuthenticatedClientAsync(_factory, "cat_dup");
+
+        await client.PostAsJsonAsync("/api/categories", new
+        {
+            name = "Duplicate",
+            color = "#aabbcc",
+            type = "expense",
+            sortOrder = 0
+        });
+
+        HttpResponseMessage second = await client.PostAsJsonAsync("/api/categories", new
+        {
+            name = "Duplicate",
+            color = "#112233",
+            type = "expense",
+            sortOrder = 1
+        });
+
+        Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
+    }
+
+    [Fact]
+    public async Task Create_DuplicateNameCaseInsensitive_Returns409()
+    {
+        HttpClient client = await TestHelpers.CreateAuthenticatedClientAsync(_factory, "cat_dup_ci");
+
+        await client.PostAsJsonAsync("/api/categories", new
+        {
+            name = "Food",
+            color = "#aabbcc",
+            type = "expense",
+            sortOrder = 0
+        });
+
+        HttpResponseMessage second = await client.PostAsJsonAsync("/api/categories", new
+        {
+            name = "food",
+            color = "#112233",
+            type = "expense",
+            sortOrder = 1
+        });
+
+        Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
+    }
+
+    [Fact]
     public async Task Delete_OtherUsersCategory_Returns401()
     {
         HttpClient owner = await TestHelpers.CreateAuthenticatedClientAsync(_factory, "cat_owner");
