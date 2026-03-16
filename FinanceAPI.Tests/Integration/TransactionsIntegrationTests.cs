@@ -253,4 +253,34 @@ public class TransactionsIntegrationTests : IClassFixture<FinanceApiFactory>
         Assert.NotNull(transactions);
         Assert.All(transactions!, tx => Assert.Equal("income", tx.Type));
     }
+
+    [Fact]
+    public async Task Create_NonExistentDay_Returns400()
+    {
+        HttpClient client = await TestHelpers.CreateAuthenticatedClientAsync(_factory, "tx_date_invalid1");
+
+        HttpResponseMessage response = await client.PostAsJsonAsync("/api/transactions", new
+        {
+            amount = 10m,
+            type = "expense",
+            date = "2026-02-31"
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Create_InvalidMonthAndDay_Returns400()
+    {
+        HttpClient client = await TestHelpers.CreateAuthenticatedClientAsync(_factory, "tx_date_invalid2");
+
+        HttpResponseMessage response = await client.PostAsJsonAsync("/api/transactions", new
+        {
+            amount = 10m,
+            type = "expense",
+            date = "2026-99-99"
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
 }
