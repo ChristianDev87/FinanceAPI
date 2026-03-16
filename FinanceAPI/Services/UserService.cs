@@ -12,11 +12,6 @@ namespace FinanceAPI.Services;
 
 public class UserService : IUserService
 {
-    // Serialises all operations that can reduce the active-admin count so that
-    // the "at least one active admin" invariant cannot be broken under parallelism.
-    // Note: single-process only — a distributed lock would be required for multi-node.
-    private static readonly SemaphoreSlim _adminMutationLock = new(1, 1);
-
     private readonly IUserRepository _userRepo;
     private readonly IApiKeyRepository _apiKeyRepo;
     private readonly IDbConnectionFactory _connectionFactory;
@@ -46,7 +41,6 @@ public class UserService : IUserService
         User user = await _userRepo.GetByIdAsync(id, cancellationToken)
                    ?? throw new KeyNotFoundException($"User {id} not found.");
 
-        // Check username uniqueness (excluding current user)
         User? existing = await _userRepo.GetByUsernameAsync(request.Username, cancellationToken);
         if (existing is not null && existing.Id != id)
         {
@@ -59,12 +53,19 @@ public class UserService : IUserService
             throw new ArgumentException("Email already in use.");
         }
 
+        // Demoting an active admin requires an atomic check that another active admin remains.
+        // The Serializable transaction prevents a concurrent request from racing past this guard.
         if (allowRoleChange && user.RoleName == UserRoles.Admin && user.IsActive && request.Role != UserRoles.Admin)
         {
-            await _adminMutationLock.WaitAsync(cancellationToken);
-            try
+            using IDbConnection conn = _connectionFactory.CreateConnection();
+            if (conn.State != ConnectionState.Open)
             {
-                int activeAdmins = await _userRepo.CountActiveAdminsAsync(cancellationToken);
+                conn.Open();
+            }
+
+            await DbTransactionHelper.ExecuteInSerializableTransactionAsync(conn, async txn =>
+            {
+                int activeAdmins = await _userRepo.CountActiveAdminsAsync(conn, txn);
                 if (activeAdmins <= 1)
                 {
                     throw new InvalidOperationException("Cannot demote the last active admin.");
@@ -73,12 +74,8 @@ public class UserService : IUserService
                 user.Username = request.Username;
                 user.Email = request.Email;
                 user.RoleName = request.Role;
-                await _userRepo.UpdateAsync(user, cancellationToken);
-            }
-            finally
-            {
-                _adminMutationLock.Release();
-            }
+                await _userRepo.UpdateAsync(user, conn, txn);
+            }, cancellationToken);
 
             return MapToDto(user);
         }
@@ -98,26 +95,27 @@ public class UserService : IUserService
 
         if (user.RoleName == UserRoles.Admin && user.IsActive)
         {
-            await _adminMutationLock.WaitAsync(cancellationToken);
-            try
+            using IDbConnection conn = _connectionFactory.CreateConnection();
+            if (conn.State != ConnectionState.Open)
             {
-                int activeAdmins = await _userRepo.CountActiveAdminsAsync(cancellationToken);
+                conn.Open();
+            }
+
+            await DbTransactionHelper.ExecuteInSerializableTransactionAsync(conn, async txn =>
+            {
+                int activeAdmins = await _userRepo.CountActiveAdminsAsync(conn, txn);
                 if (activeAdmins <= 1)
                 {
                     throw new InvalidOperationException("Cannot delete the last active admin.");
                 }
 
-                await _userRepo.DeleteAsync(user.Id, cancellationToken);
-            }
-            finally
-            {
-                _adminMutationLock.Release();
-            }
+                await _userRepo.DeleteAsync(user.Id, conn, txn);
+            }, cancellationToken);
 
             return;
         }
 
-        await _userRepo.DeleteAsync(user.Id, cancellationToken);
+        await _userRepo.DeleteAsync(id, cancellationToken);
     }
 
     public async Task SetActiveAsync(int id, bool isActive, CancellationToken cancellationToken = default)
@@ -127,21 +125,22 @@ public class UserService : IUserService
 
         if (!isActive && user.RoleName == UserRoles.Admin && user.IsActive)
         {
-            await _adminMutationLock.WaitAsync(cancellationToken);
-            try
+            using IDbConnection conn = _connectionFactory.CreateConnection();
+            if (conn.State != ConnectionState.Open)
             {
-                int activeAdmins = await _userRepo.CountActiveAdminsAsync(cancellationToken);
+                conn.Open();
+            }
+
+            await DbTransactionHelper.ExecuteInSerializableTransactionAsync(conn, async txn =>
+            {
+                int activeAdmins = await _userRepo.CountActiveAdminsAsync(conn, txn);
                 if (activeAdmins <= 1)
                 {
                     throw new InvalidOperationException("Cannot deactivate the last active admin.");
                 }
 
-                await _userRepo.SetActiveAsync(id, isActive, cancellationToken);
-            }
-            finally
-            {
-                _adminMutationLock.Release();
-            }
+                await _userRepo.SetActiveAsync(id, isActive, conn, txn);
+            }, cancellationToken);
 
             return;
         }

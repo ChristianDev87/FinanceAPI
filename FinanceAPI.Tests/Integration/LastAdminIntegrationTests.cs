@@ -166,7 +166,10 @@ public class LastAdminIntegrationTests : IClassFixture<FinanceApiFactory>
 
             HttpResponseMessage[] results = await Task.WhenAll(req1, req2);
 
-            // At most one deactivation can succeed; the other must be rejected for any reason
+            // At most one deactivation can succeed; the other must be rejected.
+            // The Serializable DB transaction serialises concurrent admin-guard checks across all
+            // application instances, so one request will either fail with 400 (last admin) or
+            // 401 (account just deactivated by the competing request).
             int successCount = results.Count(r => r.IsSuccessStatusCode);
             Assert.True(successCount <= 1, $"Both concurrent deactivations succeeded — the last-admin invariant may be broken.");
 

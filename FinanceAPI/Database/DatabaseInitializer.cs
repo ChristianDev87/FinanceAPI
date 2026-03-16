@@ -1,4 +1,5 @@
 using System.Data;
+using System.Globalization;
 using Dapper;
 
 namespace FinanceAPI.Database;
@@ -24,34 +25,17 @@ public class DatabaseInitializer
         _logger.LogInformation("Initializing database...");
 
         string provider = _configuration["DatabaseSettings:Provider"] ?? "sqlite";
-        string schemaFile = provider.ToLowerInvariant() switch
-        {
-            "postgresql" or "postgres" => "schema.postgresql.sql",
-            "mysql" => "schema.mysql.sql",
-            _ => "schema.sql"
-        };
-
-        string schemaPath = Path.Combine(AppContext.BaseDirectory, "Database", schemaFile);
-        if (!File.Exists(schemaPath))
-        {
-            schemaPath = Path.Combine(Directory.GetCurrentDirectory(), "Database", schemaFile);
-        }
-
-        // Fallback to schema.sql for backward compatibility
-        if (!File.Exists(schemaPath))
-        {
-            schemaPath = Path.Combine(AppContext.BaseDirectory, "Database", "schema.sql");
-        }
-
-        string schema = await File.ReadAllTextAsync(schemaPath);
-
         string normalizedProvider = provider.ToLowerInvariant();
+
         using IDbConnection connection = _connectionFactory.CreateConnection();
+        if (connection.State != ConnectionState.Open)
+        {
+            connection.Open();
+        }
 
         // Acquire a provider-specific advisory lock so concurrent app instances
         // (e.g. multiple xUnit test factories against a shared database) don't race
-        // to create the same tables/types simultaneously.
-        // SQLite in-memory: each factory has an isolated database → no lock needed.
+        // to apply the same migrations simultaneously.
         switch (normalizedProvider)
         {
             case "postgresql" or "postgres":
@@ -64,41 +48,31 @@ public class DatabaseInitializer
 
         try
         {
-            string[] statements = schema.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            foreach (string statement in statements)
+            // 1. Ensure the SchemaVersions tracking table exists
+            await EnsureSchemaVersionsTableAsync(connection, normalizedProvider);
+
+            // 2. Load already-applied migration versions
+            HashSet<int> applied = (await connection.QueryAsync<int>(
+                "SELECT Version FROM SchemaVersions")).ToHashSet();
+
+            // 3. Discover migration files for this provider, sorted by version number
+            string migrationsDir = GetMigrationsDirectory(normalizedProvider);
+            string[] migrationFiles = Directory.GetFiles(migrationsDir, "V*.sql")
+                .OrderBy(f => f)
+                .ToArray();
+
+            // 4. Apply any pending migrations
+            foreach (string file in migrationFiles)
             {
-                if (string.IsNullOrWhiteSpace(statement))
+                int version = ParseVersion(Path.GetFileName(file));
+                if (applied.Contains(version))
                 {
                     continue;
                 }
 
-                const int maxAttempts = 3;
-                for (int attempt = 1; attempt <= maxAttempts; attempt++)
-                {
-                    try
-                    {
-                        await connection.ExecuteAsync(statement);
-                        break;
-                    }
-                    catch (Exception ex) when (IsAlreadyExistsError(ex, normalizedProvider, statement))
-                    {
-                        // Object already exists — safe to skip on subsequent startups
-                        _logger.LogDebug("Statement skipped (already exists): {Message}", ex.Message);
-                        break;
-                    }
-                    catch (Exception ex) when (IsDeadlockError(ex, normalizedProvider))
-                    {
-                        if (attempt >= maxAttempts)
-                        {
-                            _logger.LogError(ex, "Schema initialization failed after {Max} deadlock retries.", maxAttempts);
-                            throw;
-                        }
-
-                        _logger.LogWarning("Deadlock on schema init attempt {Attempt}/{Max}, retrying in {Delay}ms...",
-                            attempt, maxAttempts, 200 * attempt);
-                        await Task.Delay(200 * attempt);
-                    }
-                }
+                _logger.LogInformation("Applying migration V{Version:D3} ({File})...",
+                    version, Path.GetFileName(file));
+                await RunMigrationAsync(connection, file, version, normalizedProvider);
             }
         }
         finally
@@ -117,22 +91,111 @@ public class DatabaseInitializer
         _logger.LogInformation("Database initialized.");
     }
 
+    private static async Task EnsureSchemaVersionsTableAsync(IDbConnection connection, string provider)
+    {
+        string sql = provider switch
+        {
+            "mysql" =>
+                "CREATE TABLE IF NOT EXISTS SchemaVersions (Version INT PRIMARY KEY, AppliedAt VARCHAR(50) NOT NULL)",
+            _ => // sqlite + postgresql
+                "CREATE TABLE IF NOT EXISTS SchemaVersions (Version INTEGER PRIMARY KEY, AppliedAt TEXT NOT NULL)"
+        };
+
+        await connection.ExecuteAsync(sql);
+    }
+
+    private string GetMigrationsDirectory(string provider)
+    {
+        string providerFolder = provider switch
+        {
+            "postgresql" or "postgres" => "PostgreSQL",
+            "mysql" => "MySQL",
+            _ => "SQLite"
+        };
+
+        string baseDir = Path.Combine(AppContext.BaseDirectory, "Database", "Migrations", providerFolder);
+        if (Directory.Exists(baseDir))
+        {
+            return baseDir;
+        }
+
+        string fallback = Path.Combine(Directory.GetCurrentDirectory(), "Database", "Migrations", providerFolder);
+        if (Directory.Exists(fallback))
+        {
+            return fallback;
+        }
+
+        throw new DirectoryNotFoundException(
+            $"Migration directory not found for provider '{provider}'. Searched: '{baseDir}', '{fallback}'.");
+    }
+
+    private static int ParseVersion(string filename)
+    {
+        // Expected format: V001__description.sql → 1
+        ReadOnlySpan<char> span = filename.AsSpan(1); // skip leading 'V'
+        int underscoreIdx = span.IndexOf('_');
+        ReadOnlySpan<char> versionSpan = underscoreIdx > 0 ? span[..underscoreIdx] : span;
+        return int.Parse(versionSpan, NumberStyles.None, CultureInfo.InvariantCulture);
+    }
+
+    private async Task RunMigrationAsync(IDbConnection connection, string filePath, int version, string provider)
+    {
+        string schema = await File.ReadAllTextAsync(filePath);
+        string[] statements = schema.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        foreach (string statement in statements)
+        {
+            if (string.IsNullOrWhiteSpace(statement))
+            {
+                continue;
+            }
+
+            const int maxAttempts = 3;
+            for (int attempt = 1; attempt <= maxAttempts; attempt++)
+            {
+                try
+                {
+                    await connection.ExecuteAsync(statement);
+                    break;
+                }
+                catch (Exception ex) when (IsAlreadyExistsError(ex, provider, statement))
+                {
+                    _logger.LogDebug("Statement skipped (already exists): {Message}", ex.Message);
+                    break;
+                }
+                catch (Exception ex) when (IsDeadlockError(ex, provider))
+                {
+                    if (attempt >= maxAttempts)
+                    {
+                        _logger.LogError(ex, "Schema migration failed after {Max} deadlock retries.", maxAttempts);
+                        throw;
+                    }
+
+                    _logger.LogWarning("Deadlock on migration attempt {Attempt}/{Max}, retrying in {Delay}ms...",
+                        attempt, maxAttempts, 200 * attempt);
+                    await Task.Delay(200 * attempt);
+                }
+            }
+        }
+
+        await connection.ExecuteAsync(
+            "INSERT INTO SchemaVersions (Version, AppliedAt) VALUES (@Version, @AppliedAt)",
+            new { Version = version, AppliedAt = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) });
+
+        _logger.LogInformation("Migration V{Version:D3} applied successfully.", version);
+    }
+
     private static bool IsDeadlockError(Exception ex, string provider) =>
         provider is "mysql" &&
         ex is MySqlConnector.MySqlException { ErrorCode: MySqlConnector.MySqlErrorCode.LockDeadlock };
 
-    /// <summary>
-    /// Returns true when the exception indicates that the database object already exists
-    /// and the statement can be safely skipped.
-    /// Each provider uses a different error code convention.
-    /// </summary>
     private static bool IsAlreadyExistsError(Exception ex, string provider, string statement)
     {
         switch (provider)
         {
             case "postgresql" or "postgres":
-                // 42P07 = duplicate_table, 42701 = duplicate_column, 42P01 = undefined_table (ADD COLUMN on missing table)
-                // 23505 = unique_violation (concurrent INSERT of seed rows), 42710 = duplicate_object (index)
+                // 42P07 = duplicate_table, 42701 = duplicate_column, 42710 = duplicate_object (index)
+                // 23505 = unique_violation (seed rows)
                 if (ex is Npgsql.PostgresException pg)
                 {
                     return pg.SqlState is "42P07" or "42701" or "23505" or "42710";
@@ -141,8 +204,8 @@ public class DatabaseInitializer
                 return false;
 
             case "mysql":
-                // 1050 = table already exists, 1060 = duplicate column, 1061 = duplicate key name (index)
-                // 1062 = duplicate entry (seed rows), 1005 = can't create table (FK already satisfied)
+                // 1050 = table already exists, 1060 = duplicate column, 1061 = duplicate key name
+                // 1062 = duplicate entry (seed rows)
                 if (ex is MySqlConnector.MySqlException my)
                 {
                     return my.ErrorCode is MySqlConnector.MySqlErrorCode.TableExists
@@ -153,7 +216,7 @@ public class DatabaseInitializer
 
                 return false;
 
-            default: // SQLite — isolated in-memory databases per factory, only migration statements can fail
+            default: // SQLite
                 return statement.Contains("ADD COLUMN", StringComparison.OrdinalIgnoreCase)
                     || statement.Contains("CREATE INDEX", StringComparison.OrdinalIgnoreCase)
                     || statement.Contains("CREATE UNIQUE INDEX", StringComparison.OrdinalIgnoreCase);

@@ -15,11 +15,6 @@ namespace FinanceAPI.Services;
 
 public class AuthService : IAuthService
 {
-    // Serializes concurrent registrations to prevent two simultaneous requests
-    // from both seeing 0 users and both receiving the Admin role.
-    // Note: single-instance only — a distributed lock would be required for multi-node deployments.
-    private static readonly SemaphoreSlim _registerLock = new(1, 1);
-
     private readonly IUserRepository _userRepo;
     private readonly ICategoryRepository _categoryRepo;
     private readonly IConfiguration _config;
@@ -35,45 +30,9 @@ public class AuthService : IAuthService
 
     public async Task<AuthResponse> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken = default)
     {
-        await _registerLock.WaitAsync(cancellationToken);
-        try
-        {
-            return await RegisterInternalAsync(request, cancellationToken);
-        }
-        finally
-        {
-            _registerLock.Release();
-        }
-    }
-
-    private async Task<AuthResponse> RegisterInternalAsync(RegisterRequest request, CancellationToken cancellationToken)
-    {
-        string role = UserRoles.User;
-
-        if (await _userRepo.GetByUsernameAsync(request.Username, cancellationToken) is not null)
-        {
-            throw new ArgumentException("Username is already taken.");
-        }
-
-        if (await _userRepo.GetByEmailAsync(request.Email, cancellationToken) is not null)
-        {
-            throw new ArgumentException("Email is already registered.");
-        }
-
-        if (!await _userRepo.AnyAsync(cancellationToken))
-        {
-            role = UserRoles.Admin;
-        }
-
-        User user = new User
-        {
-            Username = string.Concat(request.Username[0].ToString().ToUpper(), request.Username.AsSpan(1)), //First letter uppercase for username
-            Email = request.Email,
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password, workFactor: 12),
-            RoleName = role
-        };
-
-        List<DefaultCategoryConfig> defaultCategories = _config.GetSection("DefaultCategories").Get<List<DefaultCategoryConfig>>() ?? new();
+        // Pre-compute the password hash outside the transaction: BCrypt is intentionally slow
+        // and should not be recomputed on serialization-failure retries.
+        string passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password, workFactor: 12);
 
         using IDbConnection conn = _connectionFactory.CreateConnection();
         if (conn.State != ConnectionState.Open)
@@ -81,30 +40,59 @@ public class AuthService : IAuthService
             conn.Open();
         }
 
-        using IDbTransaction txn = conn.BeginTransaction();
-        try
+        // All uniqueness checks + user count + insert run in a single Serializable transaction.
+        // This ensures the "first user becomes Admin" rule and username/email uniqueness are
+        // enforced atomically across multiple application instances.
+        return await DbTransactionHelper.ExecuteInSerializableTransactionAsync(
+            conn,
+            txn => RegisterInTransactionAsync(request, passwordHash, conn, txn, cancellationToken),
+            cancellationToken);
+    }
+
+    private async Task<AuthResponse> RegisterInTransactionAsync(
+        RegisterRequest request,
+        string passwordHash,
+        IDbConnection conn,
+        IDbTransaction txn,
+        CancellationToken cancellationToken)
+    {
+        if (await _userRepo.GetByUsernameAsync(request.Username, conn, txn) is not null)
         {
-            user.Id = await _userRepo.CreateAsync(user, conn, txn);
-
-            for (int i = 0; i < defaultCategories.Count; i++)
-            {
-                DefaultCategoryConfig cat = defaultCategories[i];
-                await _categoryRepo.CreateAsync(new Category
-                {
-                    UserId = user.Id,
-                    Name = cat.Name,
-                    Color = cat.Color,
-                    Type = cat.Type,
-                    SortOrder = i
-                }, conn, txn);
-            }
-
-            txn.Commit();
+            throw new ArgumentException("Username is already taken.");
         }
-        catch
+
+        if (await _userRepo.GetByEmailAsync(request.Email, conn, txn) is not null)
         {
-            txn.Rollback();
-            throw;
+            throw new ArgumentException("Email is already registered.");
+        }
+
+        bool hasUsers = await _userRepo.AnyAsync(conn, txn);
+        string role = hasUsers ? UserRoles.User : UserRoles.Admin;
+
+        User user = new User
+        {
+            Username = string.Concat(request.Username[0].ToString().ToUpper(), request.Username.AsSpan(1)),
+            Email = request.Email,
+            PasswordHash = passwordHash,
+            RoleName = role
+        };
+
+        user.Id = await _userRepo.CreateAsync(user, conn, txn);
+
+        List<DefaultCategoryConfig> defaultCategories =
+            _config.GetSection("DefaultCategories").Get<List<DefaultCategoryConfig>>() ?? new();
+
+        for (int i = 0; i < defaultCategories.Count; i++)
+        {
+            DefaultCategoryConfig cat = defaultCategories[i];
+            await _categoryRepo.CreateAsync(new Category
+            {
+                UserId = user.Id,
+                Name = cat.Name,
+                Color = cat.Color,
+                Type = cat.Type,
+                SortOrder = i
+            }, conn, txn);
         }
 
         return new AuthResponse
