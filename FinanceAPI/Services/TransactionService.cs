@@ -1,3 +1,4 @@
+using System.Globalization;
 using FinanceAPI.DTOs.Transactions;
 using FinanceAPI.Interfaces.Repositories;
 using FinanceAPI.Interfaces.Services;
@@ -65,7 +66,7 @@ public class TransactionService : ITransactionService
             Amount = request.Amount,
             Type = request.Type,
             CategoryId = request.CategoryId,
-            Date = request.Date,
+            Date = DateOnly.ParseExact(request.Date, "yyyy-MM-dd", CultureInfo.InvariantCulture),
             Description = request.Description
         };
 
@@ -103,7 +104,7 @@ public class TransactionService : ITransactionService
         transaction.Amount = request.Amount;
         transaction.Type = request.Type;
         transaction.CategoryId = request.CategoryId;
-        transaction.Date = request.Date;
+        transaction.Date = DateOnly.ParseExact(request.Date, "yyyy-MM-dd", CultureInfo.InvariantCulture);
         transaction.Description = request.Description;
 
         await _transactionRepo.UpdateAsync(transaction);
@@ -131,7 +132,7 @@ public class TransactionService : ITransactionService
         Type = t.Type,
         CategoryId = t.CategoryId,
         CategoryName = category?.Name,
-        Date = t.Date,
+        Date = t.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
         Description = t.Description,
         CreatedAt = t.CreatedAt
     };
@@ -144,7 +145,7 @@ public class TransactionService : ITransactionService
         CategoryId = t.CategoryId,
         CategoryName = t.CategoryId.HasValue && categories.TryGetValue(t.CategoryId.Value, out Category? cat)
             ? cat.Name : null,
-        Date = t.Date,
+        Date = t.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
         Description = t.Description,
         CreatedAt = t.CreatedAt
     };

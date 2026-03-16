@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text;
+using Dapper;
 using FinanceAPI.Database;
 using FinanceAPI.Interfaces.Repositories;
 using FinanceAPI.Interfaces.Services;
@@ -11,6 +12,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+
+SqlMapper.AddTypeHandler(new DateOnlyTypeHandler());
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 

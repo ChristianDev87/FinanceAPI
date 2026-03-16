@@ -26,7 +26,7 @@ public class TransactionServiceTests
         UserId = userId,
         Amount = amount,
         Type = "expense",
-        Date = "2026-01-01"
+        Date = new DateOnly(2026, 1, 1)
     };
 
     private static Category MakeCat(int id, int userId) => new()
