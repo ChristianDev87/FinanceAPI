@@ -1,4 +1,5 @@
 using FinanceAPI.DTOs.Categories;
+using FinanceAPI.Exceptions;
 using FinanceAPI.Interfaces.Repositories;
 using FinanceAPI.Interfaces.Services;
 using FinanceAPI.Models;
@@ -22,6 +23,11 @@ public class CategoryService : ICategoryService
 
     public async Task<CategoryDto> CreateAsync(int userId, CreateCategoryRequest request)
     {
+        if (await _categoryRepo.GetByUserIdAndNameAsync(userId, request.Name) is not null)
+        {
+            throw new ConflictException($"A category named '{request.Name}' already exists.");
+        }
+
         Category category = new Category
         {
             UserId = userId,
@@ -44,6 +50,15 @@ public class CategoryService : ICategoryService
         if (category.UserId != userId)
         {
             throw new UnauthorizedAccessException("Category does not belong to you.");
+        }
+
+        if (!string.Equals(category.Name, request.Name, StringComparison.OrdinalIgnoreCase))
+        {
+            Category? duplicate = await _categoryRepo.GetByUserIdAndNameAsync(userId, request.Name);
+            if (duplicate is not null && duplicate.Id != categoryId)
+            {
+                throw new ConflictException($"A category named '{request.Name}' already exists.");
+            }
         }
 
         if (!string.Equals(category.Type, request.Type, StringComparison.OrdinalIgnoreCase)

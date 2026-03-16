@@ -1,4 +1,5 @@
 using System.Text.Json;
+using FinanceAPI.Exceptions;
 
 namespace FinanceAPI.Middleware;
 
@@ -31,6 +32,7 @@ public class ErrorHandlingMiddleware
         {
             UnauthorizedAccessException => StatusCodes.Status401Unauthorized,
             KeyNotFoundException => StatusCodes.Status404NotFound,
+            ConflictException => StatusCodes.Status409Conflict,
             InvalidOperationException => StatusCodes.Status400BadRequest,
             ArgumentException => StatusCodes.Status400BadRequest,
             _ => StatusCodes.Status500InternalServerError
