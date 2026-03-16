@@ -68,7 +68,9 @@ public class LastAdminIntegrationTests : IClassFixture<FinanceApiFactory>
             .ToList();
 
         foreach (int id in deactivatedAdminIds)
+        {
             await userRepo.SetActiveAsync(id, false);
+        }
 
         return (client, deactivatedAdminIds);
     }
@@ -78,13 +80,15 @@ public class LastAdminIntegrationTests : IClassFixture<FinanceApiFactory>
         using IServiceScope scope = _factory.Services.CreateScope();
         IUserRepository userRepo = scope.ServiceProvider.GetRequiredService<IUserRepository>();
         foreach (int id in adminIds)
+        {
             await userRepo.SetActiveAsync(id, true);
+        }
     }
 
     [Fact]
     public async Task LastAdmin_CannotDemoteSelf_Returns400()
     {
-        var (client, deactivatedAdminIds) = await SetupSoleAdminAsync("p2_demote");
+        (HttpClient? client, List<int>? deactivatedAdminIds) = await SetupSoleAdminAsync("p2_demote");
         try
         {
             HttpResponseMessage profileResp = await client.GetAsync("/api/profile");
@@ -109,7 +113,7 @@ public class LastAdminIntegrationTests : IClassFixture<FinanceApiFactory>
     [Fact]
     public async Task LastAdmin_CannotDeleteOwnAccount_Returns400()
     {
-        var (client, deactivatedAdminIds) = await SetupSoleAdminAsync("p2_delete");
+        (HttpClient? client, List<int>? deactivatedAdminIds) = await SetupSoleAdminAsync("p2_delete");
         try
         {
             HttpResponseMessage response = await client.DeleteAsync("/api/profile");
@@ -124,7 +128,7 @@ public class LastAdminIntegrationTests : IClassFixture<FinanceApiFactory>
     [Fact]
     public async Task Demotion_AllowedWhenSecondAdminExists_Returns200()
     {
-        var (admin1Client, deactivatedAdminIds) = await SetupSoleAdminAsync("p2_admin1");
+        (HttpClient? admin1Client, List<int>? deactivatedAdminIds) = await SetupSoleAdminAsync("p2_admin1");
         try
         {
             // Register a second user and promote them to admin

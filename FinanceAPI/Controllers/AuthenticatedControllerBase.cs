@@ -11,7 +11,10 @@ public abstract class AuthenticatedControllerBase : ControllerBase
         {
             string? value = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!int.TryParse(value, out int userId))
+            {
                 throw new UnauthorizedAccessException("Invalid user identifier in token.");
+            }
+
             return userId;
         }
     }

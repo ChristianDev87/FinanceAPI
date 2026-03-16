@@ -57,7 +57,9 @@ public class UserService : IUserService
         {
             int activeAdmins = await _userRepo.CountActiveAdminsAsync();
             if (activeAdmins <= 1)
+            {
                 throw new InvalidOperationException("Cannot demote the last active admin.");
+            }
         }
 
         user.Username = request.Username;
@@ -77,7 +79,9 @@ public class UserService : IUserService
         {
             int activeAdmins = await _userRepo.CountActiveAdminsAsync();
             if (activeAdmins <= 1)
+            {
                 throw new InvalidOperationException("Cannot delete the last active admin.");
+            }
         }
 
         await _userRepo.DeleteAsync(user.Id);
@@ -92,7 +96,9 @@ public class UserService : IUserService
         {
             int activeAdmins = await _userRepo.CountActiveAdminsAsync();
             if (activeAdmins <= 1)
+            {
                 throw new InvalidOperationException("Cannot deactivate the last active admin.");
+            }
         }
 
         await _userRepo.SetActiveAsync(id, isActive);
@@ -122,7 +128,11 @@ public class UserService : IUserService
         int newKeyId;
         using (IDbConnection conn = _connectionFactory.CreateConnection())
         {
-            if (conn.State != ConnectionState.Open) conn.Open();
+            if (conn.State != ConnectionState.Open)
+            {
+                conn.Open();
+            }
+
             using IDbTransaction txn = conn.BeginTransaction();
             try
             {

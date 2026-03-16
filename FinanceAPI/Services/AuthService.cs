@@ -75,7 +75,11 @@ public class AuthService : IAuthService
         List<DefaultCategoryConfig> defaultCategories = _config.GetSection("DefaultCategories").Get<List<DefaultCategoryConfig>>() ?? new();
 
         using IDbConnection conn = _connectionFactory.CreateConnection();
-        if (conn.State != ConnectionState.Open) conn.Open();
+        if (conn.State != ConnectionState.Open)
+        {
+            conn.Open();
+        }
+
         using IDbTransaction txn = conn.BeginTransaction();
         try
         {

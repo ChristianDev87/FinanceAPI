@@ -18,8 +18,8 @@ public class UserServiceTests
 
     public UserServiceTests()
     {
-        var txn = new Mock<IDbTransaction>();
-        var conn = new Mock<IDbConnection>();
+        Mock<IDbTransaction> txn = new Mock<IDbTransaction>();
+        Mock<IDbConnection> conn = new Mock<IDbConnection>();
         conn.Setup(c => c.BeginTransaction()).Returns(txn.Object);
         conn.Setup(c => c.BeginTransaction(It.IsAny<IsolationLevel>())).Returns(txn.Object);
         conn.SetupGet(c => c.State).Returns(ConnectionState.Open);

@@ -1,5 +1,6 @@
 using System.Net;
 using FinanceAPI.Interfaces.Repositories;
+using FinanceAPI.Models;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace FinanceAPI.Tests.Integration;
@@ -26,7 +27,7 @@ public class UserStatusIntegrationTests : IClassFixture<FinanceApiFactory>
         // Deactivate the user directly via repository
         using IServiceScope scope = _factory.Services.CreateScope();
         IUserRepository userRepo = scope.ServiceProvider.GetRequiredService<IUserRepository>();
-        var user = await userRepo.GetByUsernameAsync("status_deactivate");
+        User? user = await userRepo.GetByUsernameAsync("status_deactivate");
         await userRepo.SetActiveAsync(user!.Id, false);
 
         // Old JWT must be rejected immediately
@@ -46,7 +47,7 @@ public class UserStatusIntegrationTests : IClassFixture<FinanceApiFactory>
         // Delete the user directly via repository
         using IServiceScope scope = _factory.Services.CreateScope();
         IUserRepository userRepo = scope.ServiceProvider.GetRequiredService<IUserRepository>();
-        var user = await userRepo.GetByUsernameAsync("status_delete");
+        User? user = await userRepo.GetByUsernameAsync("status_delete");
         await userRepo.DeleteAsync(user!.Id);
 
         // Old JWT must be rejected immediately

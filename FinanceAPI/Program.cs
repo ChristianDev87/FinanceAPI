@@ -4,6 +4,7 @@ using FinanceAPI.Database;
 using FinanceAPI.Interfaces.Repositories;
 using FinanceAPI.Interfaces.Services;
 using FinanceAPI.Middleware;
+using FinanceAPI.Models;
 using FinanceAPI.Repositories;
 using FinanceAPI.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -186,7 +187,7 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
                 IUserRepository userRepo = context.HttpContext.RequestServices
                     .GetRequiredService<IUserRepository>();
 
-                var user = await userRepo.GetByIdAsync(userId);
+                User? user = await userRepo.GetByIdAsync(userId);
                 if (user is null || !user.IsActive)
                 {
                     context.Fail("User account is disabled or does not exist.");
