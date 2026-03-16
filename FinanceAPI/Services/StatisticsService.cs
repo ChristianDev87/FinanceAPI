@@ -1,3 +1,4 @@
+using System.Data;
 using Dapper;
 using FinanceAPI.Database;
 using FinanceAPI.DTOs.Statistics;
@@ -18,7 +19,7 @@ public class StatisticsService : IStatisticsService
 
     public async Task<IEnumerable<int>> GetAvailableYearsAsync(int userId)
     {
-        using var conn = _connectionFactory.CreateConnection();
+        using IDbConnection conn = _connectionFactory.CreateConnection();
         return await conn.QueryAsync<int>(
             $"""
             SELECT DISTINCT {_dialect.Year("Date")} AS Year
@@ -31,9 +32,9 @@ public class StatisticsService : IStatisticsService
 
     public async Task<IEnumerable<MonthlyStatDto>> GetMonthlyAsync(int userId, int year)
     {
-        using var conn = _connectionFactory.CreateConnection();
+        using IDbConnection conn = _connectionFactory.CreateConnection();
 
-        var rows = await conn.QueryAsync<(int Month, string Type, decimal Total)>(
+        IEnumerable<(int Month, string Type, decimal Total)> rows = await conn.QueryAsync<(int Month, string Type, decimal Total)>(
             $"""
             SELECT
                 {_dialect.Month("Date")} AS Month,
@@ -47,12 +48,12 @@ public class StatisticsService : IStatisticsService
             """,
             new { UserId = userId, Year = year });
 
-        var grouped = rows.GroupBy(r => r.Month);
-        var result = new List<MonthlyStatDto>();
+        IEnumerable<IGrouping<int, (int Month, string Type, decimal Total)>> grouped = rows.GroupBy(r => r.Month);
+        List<MonthlyStatDto> result = new List<MonthlyStatDto>();
 
-        for (var m = 1; m <= 12; m++)
+        for (int m = 1; m <= 12; m++)
         {
-            var monthRows = grouped.FirstOrDefault(g => g.Key == m);
+            IGrouping<int, (int Month, string Type, decimal Total)>? monthRows = grouped.FirstOrDefault(g => g.Key == m);
             result.Add(new MonthlyStatDto
             {
                 Month = m,
@@ -68,9 +69,9 @@ public class StatisticsService : IStatisticsService
     public async Task<IEnumerable<CategoryStatDto>> GetByCategoryAsync(
         int userId, int month, int year, string? type)
     {
-        using var conn = _connectionFactory.CreateConnection();
+        using IDbConnection conn = _connectionFactory.CreateConnection();
 
-        var sql = $"""
+        string sql = $"""
             SELECT
                 t.CategoryId,
                 COALESCE(c.Name, 'Uncategorized') AS CategoryName,
@@ -85,7 +86,7 @@ public class StatisticsService : IStatisticsService
               AND {_dialect.Year("t.Date")} = @Year
             """;
 
-        var parameters = new DynamicParameters();
+        DynamicParameters parameters = new DynamicParameters();
         parameters.Add("UserId", userId);
         parameters.Add("Month", month);
         parameters.Add("Year", year);

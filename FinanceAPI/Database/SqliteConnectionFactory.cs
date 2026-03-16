@@ -14,7 +14,7 @@ public class SqliteConnectionFactory : IDbConnectionFactory
 
     public IDbConnection CreateConnection()
     {
-        var connection = new SqliteConnection(_connectionString);
+        SqliteConnection connection = new SqliteConnection(_connectionString);
         connection.Open();
         return connection;
     }

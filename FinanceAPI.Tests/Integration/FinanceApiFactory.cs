@@ -57,8 +57,11 @@ public sealed class FinanceApiFactory : WebApplicationFactory<Program>, IAsyncLi
         {
             builder.ConfigureServices(services =>
             {
-                var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(IDbConnectionFactory));
-                if (descriptor != null) services.Remove(descriptor);
+                ServiceDescriptor? descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(IDbConnectionFactory));
+                if (descriptor != null)
+                {
+                    services.Remove(descriptor);
+                }
 
                 services.AddSingleton<IDbConnectionFactory>(_ => new InMemoryDbConnectionFactory(_dbName));
             });
@@ -82,7 +85,9 @@ public sealed class FinanceApiFactory : WebApplicationFactory<Program>, IAsyncLi
     public new async Task DisposeAsync()
     {
         if (_keepAlive != null)
+        {
             await _keepAlive.DisposeAsync();
+        }
 
         await base.DisposeAsync();
     }

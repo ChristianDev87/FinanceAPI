@@ -30,7 +30,11 @@ public class StatisticsController : ControllerBase
     public async Task<ActionResult<IEnumerable<MonthlyStatDto>>> GetMonthly(
         [FromQuery] int year = 0)
     {
-        if (year == 0) year = DateTime.UtcNow.Year;
+        if (year == 0)
+        {
+            year = DateTime.UtcNow.Year;
+        }
+
         return Ok(await _statisticsService.GetMonthlyAsync(UserId, year));
     }
 
@@ -40,8 +44,16 @@ public class StatisticsController : ControllerBase
         [FromQuery] int year = 0,
         [FromQuery] string? type = null)
     {
-        if (month == 0) month = DateTime.UtcNow.Month;
-        if (year == 0) year = DateTime.UtcNow.Year;
+        if (month == 0)
+        {
+            month = DateTime.UtcNow.Month;
+        }
+
+        if (year == 0)
+        {
+            year = DateTime.UtcNow.Year;
+        }
+
         return Ok(await _statisticsService.GetByCategoryAsync(UserId, month, year, type));
     }
 }

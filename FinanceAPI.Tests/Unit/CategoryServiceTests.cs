@@ -18,7 +18,12 @@ public class CategoryServiceTests
 
     private static Category MakeCat(int id, int userId, string name = "Food") => new()
     {
-        Id = id, UserId = userId, Name = name, Color = "#fff", Type = "expense", SortOrder = 0
+        Id = id,
+        UserId = userId,
+        Name = name,
+        Color = "#fff",
+        Type = "expense",
+        SortOrder = 0
     };
 
     // ── GetAll ────────────────────────────────────────────────────
@@ -29,10 +34,10 @@ public class CategoryServiceTests
         _repo.Setup(r => r.GetByUserIdAsync(1))
              .ReturnsAsync(new[] { MakeCat(1, 1), MakeCat(2, 1, "Transport") });
 
-        var result = (await _sut.GetAllAsync(1)).ToList();
+        List<CategoryDto> result = (await _sut.GetAllAsync(1)).ToList();
 
         Assert.Equal(2, result.Count);
-        Assert.Equal("Food",      result[0].Name);
+        Assert.Equal("Food", result[0].Name);
         Assert.Equal("Transport", result[1].Name);
     }
 
@@ -41,7 +46,7 @@ public class CategoryServiceTests
     {
         _repo.Setup(r => r.GetByUserIdAsync(1)).ReturnsAsync(Array.Empty<Category>());
 
-        var result = await _sut.GetAllAsync(1);
+        IEnumerable<CategoryDto> result = await _sut.GetAllAsync(1);
 
         Assert.Empty(result);
     }
@@ -53,18 +58,18 @@ public class CategoryServiceTests
     {
         _repo.Setup(r => r.CreateAsync(It.IsAny<Category>())).ReturnsAsync(5);
 
-        var result = await _sut.CreateAsync(1, new CreateCategoryRequest
+        CategoryDto result = await _sut.CreateAsync(1, new CreateCategoryRequest
         {
-            Name      = "Shopping",
-            Color     = "#ff0000",
-            Type      = "expense",
+            Name = "Shopping",
+            Color = "#ff0000",
+            Type = "expense",
             SortOrder = 3
         });
 
         Assert.Equal(5, result.Id);
         Assert.Equal("Shopping", result.Name);
-        Assert.Equal("#ff0000",  result.Color);
-        Assert.Equal("expense",  result.Type);
+        Assert.Equal("#ff0000", result.Color);
+        Assert.Equal("expense", result.Type);
     }
 
     // ── Update ────────────────────────────────────────────────────
@@ -74,13 +79,16 @@ public class CategoryServiceTests
     {
         _repo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(MakeCat(1, 1));
 
-        var result = await _sut.UpdateAsync(1, 1, new UpdateCategoryRequest
+        CategoryDto result = await _sut.UpdateAsync(1, 1, new UpdateCategoryRequest
         {
-            Name = "NewName", Color = "#abc", Type = "income", SortOrder = 2
+            Name = "NewName",
+            Color = "#abc",
+            Type = "income",
+            SortOrder = 2
         });
 
         Assert.Equal("NewName", result.Name);
-        Assert.Equal("income",  result.Type);
+        Assert.Equal("income", result.Type);
         _repo.Verify(r => r.UpdateAsync(It.IsAny<Category>()), Times.Once);
     }
 
@@ -92,7 +100,10 @@ public class CategoryServiceTests
         await Assert.ThrowsAsync<KeyNotFoundException>(() =>
             _sut.UpdateAsync(1, 99, new UpdateCategoryRequest
             {
-                Name = "X", Color = "#fff", Type = "expense", SortOrder = 0
+                Name = "X",
+                Color = "#fff",
+                Type = "expense",
+                SortOrder = 0
             }));
     }
 
@@ -104,7 +115,10 @@ public class CategoryServiceTests
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             _sut.UpdateAsync(1, 2, new UpdateCategoryRequest
             {
-                Name = "X", Color = "#fff", Type = "expense", SortOrder = 0
+                Name = "X",
+                Color = "#fff",
+                Type = "expense",
+                SortOrder = 0
             }));
     }
 
@@ -152,7 +166,7 @@ public class CategoryServiceTests
     [Fact]
     public async Task ReorderAsync_ValidRequest_CallsRepositoryReorder()
     {
-        var request = new ReorderCategoriesRequest
+        ReorderCategoriesRequest request = new ReorderCategoriesRequest
         {
             Items = new List<ReorderCategoriesRequest.CategoryOrderItem>
             {

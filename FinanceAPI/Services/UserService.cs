@@ -20,30 +20,34 @@ public class UserService : IUserService
 
     public async Task<IEnumerable<UserDto>> GetAllAsync()
     {
-        var users = await _userRepo.GetAllAsync();
+        IEnumerable<User> users = await _userRepo.GetAllAsync();
         return users.Select(MapToDto);
     }
 
     public async Task<UserDto> GetByIdAsync(int id)
     {
-        var user = await _userRepo.GetByIdAsync(id)
+        User user = await _userRepo.GetByIdAsync(id)
                    ?? throw new KeyNotFoundException($"User {id} not found.");
         return MapToDto(user);
     }
 
     public async Task<UserDto> UpdateAsync(int id, UpdateUserRequest request)
     {
-        var user = await _userRepo.GetByIdAsync(id)
+        User user = await _userRepo.GetByIdAsync(id)
                    ?? throw new KeyNotFoundException($"User {id} not found.");
 
         // Check username uniqueness (excluding current user)
-        var existing = await _userRepo.GetByUsernameAsync(request.Username);
+        User? existing = await _userRepo.GetByUsernameAsync(request.Username);
         if (existing is not null && existing.Id != id)
+        {
             throw new ArgumentException("Username already taken.");
+        }
 
-        var existingEmail = await _userRepo.GetByEmailAsync(request.Email);
+        User? existingEmail = await _userRepo.GetByEmailAsync(request.Email);
         if (existingEmail is not null && existingEmail.Id != id)
+        {
             throw new ArgumentException("Email already in use.");
+        }
 
         user.Username = request.Username;
         user.Email = request.Email;
@@ -55,7 +59,7 @@ public class UserService : IUserService
 
     public async Task DeleteAsync(int id)
     {
-        var user = await _userRepo.GetByIdAsync(id)
+        User user = await _userRepo.GetByIdAsync(id)
                    ?? throw new KeyNotFoundException($"User {id} not found.");
         await _userRepo.DeleteAsync(user.Id);
     }
@@ -74,14 +78,14 @@ public class UserService : IUserService
 
         await _apiKeyRepo.DeactivateAllForUserAsync(userId);
 
-        var rawBytes = RandomNumberGenerator.GetBytes(32);
-        var rawKey = Convert.ToBase64String(rawBytes)
+        byte[] rawBytes = RandomNumberGenerator.GetBytes(32);
+        string rawKey = Convert.ToBase64String(rawBytes)
             .Replace('+', '-').Replace('/', '_').TrimEnd('=');
 
-        var hashBytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(rawKey));
-        var keyHash = Convert.ToHexString(hashBytes).ToLowerInvariant();
+        byte[] hashBytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(rawKey));
+        string keyHash = Convert.ToHexString(hashBytes).ToLowerInvariant();
 
-        var apiKey = new ApiKey
+        ApiKey apiKey = new ApiKey
         {
             UserId = userId,
             KeyHash = keyHash,
@@ -90,8 +94,8 @@ public class UserService : IUserService
             CreatedByAdminId = createdByAdminId
         };
 
-        var id = await _apiKeyRepo.CreateAsync(apiKey);
-        var created = await _apiKeyRepo.GetByIdAsync(id);
+        int id = await _apiKeyRepo.CreateAsync(apiKey);
+        ApiKey? created = await _apiKeyRepo.GetByIdAsync(id);
 
         return new ApiKeyCreatedResponse
         {
@@ -107,7 +111,7 @@ public class UserService : IUserService
         _ = await _userRepo.GetByIdAsync(userId)
             ?? throw new KeyNotFoundException($"User {userId} not found.");
 
-        var keys = await _apiKeyRepo.GetByUserIdAsync(userId);
+        IEnumerable<ApiKey> keys = await _apiKeyRepo.GetByUserIdAsync(userId);
         return keys.Select(k => new ApiKeyDto
         {
             Id = k.Id,
@@ -121,11 +125,13 @@ public class UserService : IUserService
 
     public async Task RevokeApiKeyAsync(int userId, int keyId)
     {
-        var key = await _apiKeyRepo.GetByIdAsync(keyId)
+        ApiKey key = await _apiKeyRepo.GetByIdAsync(keyId)
                   ?? throw new KeyNotFoundException($"API key {keyId} not found.");
 
         if (key.UserId != userId)
+        {
             throw new UnauthorizedAccessException("API key does not belong to this user.");
+        }
 
         await _apiKeyRepo.DeactivateAsync(keyId);
     }

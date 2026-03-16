@@ -1,3 +1,4 @@
+using FinanceAPI.DTOs.ApiKeys;
 using FinanceAPI.DTOs.Users;
 using FinanceAPI.Interfaces.Repositories;
 using FinanceAPI.Models;
@@ -8,7 +9,7 @@ namespace FinanceAPI.Tests.Unit;
 
 public class UserServiceTests
 {
-    private readonly Mock<IUserRepository>  _userRepo    = new();
+    private readonly Mock<IUserRepository> _userRepo = new();
     private readonly Mock<IApiKeyRepository> _apiKeyRepo = new();
     private readonly UserService _sut;
 
@@ -19,13 +20,13 @@ public class UserServiceTests
 
     private static User MakeUser(int id, string username = "alice") => new()
     {
-        Id           = id,
-        Username     = username,
-        Email        = $"{username}@test.com",
+        Id = id,
+        Username = username,
+        Email = $"{username}@test.com",
         PasswordHash = "hash",
-        RoleName     = "User",
-        IsActive     = true,
-        CreatedAt    = "2026-01-01 00:00:00"
+        RoleName = "User",
+        IsActive = true,
+        CreatedAt = "2026-01-01 00:00:00"
     };
 
     // ── GetAll ────────────────────────────────────────────────────
@@ -36,11 +37,11 @@ public class UserServiceTests
         _userRepo.Setup(r => r.GetAllAsync())
                  .ReturnsAsync(new[] { MakeUser(1), MakeUser(2, "bob") });
 
-        var result = (await _sut.GetAllAsync()).ToList();
+        List<UserDto> result = (await _sut.GetAllAsync()).ToList();
 
         Assert.Equal(2, result.Count);
         Assert.Equal("alice", result[0].Username);
-        Assert.Equal("bob",   result[1].Username);
+        Assert.Equal("bob", result[1].Username);
     }
 
     // ── GetById ───────────────────────────────────────────────────
@@ -50,7 +51,7 @@ public class UserServiceTests
     {
         _userRepo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(MakeUser(1));
 
-        var result = await _sut.GetByIdAsync(1);
+        UserDto result = await _sut.GetByIdAsync(1);
 
         Assert.Equal(1, result.Id);
         Assert.Equal("alice", result.Username);
@@ -74,11 +75,11 @@ public class UserServiceTests
         _userRepo.Setup(r => r.GetByUsernameAsync("alice")).ReturnsAsync(MakeUser(1));   // same user
         _userRepo.Setup(r => r.GetByEmailAsync("alice@test.com")).ReturnsAsync(MakeUser(1));
 
-        var result = await _sut.UpdateAsync(1, new UpdateUserRequest
+        UserDto result = await _sut.UpdateAsync(1, new UpdateUserRequest
         {
             Username = "alice",
-            Email    = "alice@test.com",
-            Role     = "User"
+            Email = "alice@test.com",
+            Role = "User"
         });
 
         Assert.Equal("alice", result.Username);
@@ -104,8 +105,8 @@ public class UserServiceTests
             _sut.UpdateAsync(1, new UpdateUserRequest
             {
                 Username = "bob",
-                Email    = "alice@test.com",
-                Role     = "User"
+                Email = "alice@test.com",
+                Role = "User"
             }));
     }
 
@@ -120,8 +121,8 @@ public class UserServiceTests
             _sut.UpdateAsync(1, new UpdateUserRequest
             {
                 Username = "alice",
-                Email    = "bob@test.com",
-                Role     = "User"
+                Email = "bob@test.com",
+                Role = "User"
             }));
     }
 
@@ -175,7 +176,7 @@ public class UserServiceTests
         _apiKeyRepo.Setup(r => r.GetByIdAsync(10))
                    .ReturnsAsync(new ApiKey { Id = 10, UserId = 1, Name = "CI Key", IsActive = true, CreatedAt = "2026-01-01 00:00:00" });
 
-        var result = await _sut.CreateApiKeyAsync(1, "CI Key");
+        ApiKeyCreatedResponse result = await _sut.CreateApiKeyAsync(1, "CI Key");
 
         Assert.Equal(10, result.Id);
         Assert.Equal("CI Key", result.Name);
@@ -202,7 +203,7 @@ public class UserServiceTests
                        new ApiKey { Id = 2, UserId = 1, Name = "Key2", IsActive = false, CreatedAt = "2026-01-02 00:00:00" },
                    });
 
-        var result = (await _sut.GetApiKeysAsync(1)).ToList();
+        List<ApiKeyDto> result = (await _sut.GetApiKeysAsync(1)).ToList();
 
         Assert.Equal(2, result.Count);
         Assert.Equal("Key1", result[0].Name);

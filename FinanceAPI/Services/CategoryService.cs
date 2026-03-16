@@ -16,13 +16,13 @@ public class CategoryService : ICategoryService
 
     public async Task<IEnumerable<CategoryDto>> GetAllAsync(int userId)
     {
-        var categories = await _categoryRepo.GetByUserIdAsync(userId);
+        IEnumerable<Category> categories = await _categoryRepo.GetByUserIdAsync(userId);
         return categories.Select(MapToDto);
     }
 
     public async Task<CategoryDto> CreateAsync(int userId, CreateCategoryRequest request)
     {
-        var category = new Category
+        Category category = new Category
         {
             UserId = userId,
             Name = request.Name,
@@ -31,18 +31,20 @@ public class CategoryService : ICategoryService
             SortOrder = request.SortOrder
         };
 
-        var id = await _categoryRepo.CreateAsync(category);
+        int id = await _categoryRepo.CreateAsync(category);
         category.Id = id;
         return MapToDto(category);
     }
 
     public async Task<CategoryDto> UpdateAsync(int userId, int categoryId, UpdateCategoryRequest request)
     {
-        var category = await _categoryRepo.GetByIdAsync(categoryId)
+        Category category = await _categoryRepo.GetByIdAsync(categoryId)
                        ?? throw new KeyNotFoundException($"Category {categoryId} not found.");
 
         if (category.UserId != userId)
+        {
             throw new UnauthorizedAccessException("Category does not belong to you.");
+        }
 
         category.Name = request.Name;
         category.Color = request.Color;
@@ -55,21 +57,25 @@ public class CategoryService : ICategoryService
 
     public async Task DeleteAsync(int userId, int categoryId)
     {
-        var category = await _categoryRepo.GetByIdAsync(categoryId)
+        Category category = await _categoryRepo.GetByIdAsync(categoryId)
                        ?? throw new KeyNotFoundException($"Category {categoryId} not found.");
 
         if (category.UserId != userId)
+        {
             throw new UnauthorizedAccessException("Category does not belong to you.");
+        }
 
         if (await _categoryRepo.HasTransactionsAsync(categoryId))
+        {
             throw new InvalidOperationException("Cannot delete a category that has transactions. Reassign or delete the transactions first.");
+        }
 
         await _categoryRepo.DeleteAsync(categoryId);
     }
 
     public async Task ReorderAsync(int userId, ReorderCategoriesRequest request)
     {
-        var items = request.Items.Select(i => (i.Id, i.SortOrder));
+        IEnumerable<(int Id, int SortOrder)> items = request.Items.Select(i => (i.Id, i.SortOrder));
         await _categoryRepo.ReorderAsync(userId, items);
     }
 

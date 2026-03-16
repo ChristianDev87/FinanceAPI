@@ -5,7 +5,7 @@ namespace FinanceAPI.Database;
 
 public class SqliteDialect : ISqlDialect
 {
-    public string Year(string column)  => $"CAST(strftime('%Y', {column}) AS INTEGER)";
+    public string Year(string column) => $"CAST(strftime('%Y', {column}) AS INTEGER)";
     public string Month(string column) => $"CAST(strftime('%m', {column}) AS INTEGER)";
 
     public string CaseInsensitiveEqual(string column, string paramName)

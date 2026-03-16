@@ -36,26 +36,37 @@ public static class TestDataSeeder
     /// </summary>
     public static async Task<int> SeedAsync(FinanceApiFactory factory)
     {
-        var factoryKey = factory.GetHashCode();
-        if (_seededFactories.TryGetValue(factoryKey, out var cachedUserId))
+        int factoryKey = factory.GetHashCode();
+        if (_seededFactories.TryGetValue(factoryKey, out int cachedUserId))
+        {
             return cachedUserId;
+        }
 
         // Trigger app startup (which runs DatabaseInitializer / schema creation)
         _ = factory.CreateClient();
 
-        var dbFactory = factory.Services.GetRequiredService<IDbConnectionFactory>();
-        using var conn = dbFactory.CreateConnection();
-        if (conn.State != ConnectionState.Open) conn.Open();
+        IDbConnectionFactory dbFactory = factory.Services.GetRequiredService<IDbConnectionFactory>();
+        using IDbConnection conn = dbFactory.CreateConnection();
+        if (conn.State != ConnectionState.Open)
+        {
+            conn.Open();
+        }
 
-        var passwordHash = BCrypt.Net.BCrypt.HashPassword(SeedPassword, workFactor: 4);
+        string passwordHash = BCrypt.Net.BCrypt.HashPassword(SeedPassword, workFactor: 4);
 
         int userId;
         if (IsPostgreSql)
+        {
             userId = await SeedPostgreSqlAsync(conn, passwordHash);
+        }
         else if (IsMySql)
+        {
             userId = await SeedMySqlAsync(conn, passwordHash);
+        }
         else
+        {
             userId = await SeedSqliteAsync(conn, passwordHash);
+        }
 
         _seededFactories.TryAdd(factoryKey, userId);
         return userId;
@@ -68,7 +79,7 @@ public static class TestDataSeeder
             VALUES ('seeduser', 'seed@test.com', @Hash, 'User', 1)",
             new { Hash = passwordHash });
 
-        var userId = await conn.ExecuteScalarAsync<int>(
+        int userId = await conn.ExecuteScalarAsync<int>(
             "SELECT Id FROM Users WHERE Username = 'seeduser'");
 
         await conn.ExecuteAsync(@"
@@ -78,7 +89,7 @@ public static class TestDataSeeder
             (@U, 'Lebensmittel',   '#3498db', 'expense', 3)",
             new { U = userId });
 
-        var cats = (await conn.QueryAsync<(int Id, string Name)>(
+        Dictionary<string, int> cats = (await conn.QueryAsync<(int Id, string Name)>(
             "SELECT Id, Name FROM Categories WHERE UserId = @U ORDER BY SortOrder",
             new { U = userId })).ToDictionary(c => c.Name, c => c.Id);
 
@@ -104,7 +115,7 @@ public static class TestDataSeeder
     private static async Task<int> SeedPostgreSqlAsync(IDbConnection conn, string passwordHash)
     {
         // PostgreSQL: SERIAL + RETURNING, ON CONFLICT DO NOTHING
-        var userId = await conn.ExecuteScalarAsync<int?>(@"
+        int? userId = await conn.ExecuteScalarAsync<int?>(@"
             INSERT INTO Users (Username, Email, PasswordHash, RoleName, IsActive)
             VALUES ('seeduser', 'seed@test.com', @Hash, 'User', TRUE)
             ON CONFLICT DO NOTHING
@@ -122,7 +133,7 @@ public static class TestDataSeeder
             ON CONFLICT DO NOTHING",
             new { U = userId });
 
-        var cats = (await conn.QueryAsync<(int Id, string Name)>(
+        Dictionary<string, int> cats = (await conn.QueryAsync<(int Id, string Name)>(
             "SELECT Id, Name FROM Categories WHERE UserId = @U ORDER BY SortOrder",
             new { U = userId })).ToDictionary(c => c.Name, c => c.Id);
 
@@ -153,7 +164,7 @@ public static class TestDataSeeder
             VALUES ('seeduser', 'seed@test.com', @Hash, 'User', 1)",
             new { Hash = passwordHash });
 
-        var userId = await conn.ExecuteScalarAsync<int>(
+        int userId = await conn.ExecuteScalarAsync<int>(
             "SELECT Id FROM Users WHERE Username = 'seeduser'");
 
         await conn.ExecuteAsync(@"
@@ -163,7 +174,7 @@ public static class TestDataSeeder
             (@U, 'Lebensmittel',   '#3498db', 'expense', 3)",
             new { U = userId });
 
-        var cats = (await conn.QueryAsync<(int Id, string Name)>(
+        Dictionary<string, int> cats = (await conn.QueryAsync<(int Id, string Name)>(
             "SELECT Id, Name FROM Categories WHERE UserId = @U ORDER BY SortOrder",
             new { U = userId })).ToDictionary(c => c.Name, c => c.Id);
 

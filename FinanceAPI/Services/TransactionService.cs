@@ -19,21 +19,23 @@ public class TransactionService : ITransactionService
     public async Task<IEnumerable<TransactionDto>> GetAllAsync(
         int userId, int? month, int? year, int? categoryId, string? type)
     {
-        var transactions = await _transactionRepo.GetByUserIdAsync(userId, month, year, categoryId, type);
-        var categories = (await _categoryRepo.GetByUserIdAsync(userId)).ToDictionary(c => c.Id);
+        IEnumerable<Transaction> transactions = await _transactionRepo.GetByUserIdAsync(userId, month, year, categoryId, type);
+        Dictionary<int, Category> categories = (await _categoryRepo.GetByUserIdAsync(userId)).ToDictionary(c => c.Id);
 
         return transactions.Select(t => MapToDto(t, categories));
     }
 
     public async Task<TransactionDto> GetByIdAsync(int userId, int transactionId)
     {
-        var transaction = await _transactionRepo.GetByIdAsync(transactionId)
+        Transaction transaction = await _transactionRepo.GetByIdAsync(transactionId)
                           ?? throw new KeyNotFoundException($"Transaction {transactionId} not found.");
 
         if (transaction.UserId != userId)
+        {
             throw new UnauthorizedAccessException("Transaction does not belong to you.");
+        }
 
-        var categories = (await _categoryRepo.GetByUserIdAsync(userId)).ToDictionary(c => c.Id);
+        Dictionary<int, Category> categories = (await _categoryRepo.GetByUserIdAsync(userId)).ToDictionary(c => c.Id);
         return MapToDto(transaction, categories);
     }
 
@@ -41,13 +43,15 @@ public class TransactionService : ITransactionService
     {
         if (request.CategoryId.HasValue)
         {
-            var cat = await _categoryRepo.GetByIdAsync(request.CategoryId.Value)
+            Category cat = await _categoryRepo.GetByIdAsync(request.CategoryId.Value)
                       ?? throw new KeyNotFoundException($"Category {request.CategoryId} not found.");
             if (cat.UserId != userId)
+            {
                 throw new UnauthorizedAccessException("Category does not belong to you.");
+            }
         }
 
-        var transaction = new Transaction
+        Transaction transaction = new Transaction
         {
             UserId = userId,
             Amount = request.Amount,
@@ -57,27 +61,31 @@ public class TransactionService : ITransactionService
             Description = request.Description
         };
 
-        var id = await _transactionRepo.CreateAsync(transaction);
+        int id = await _transactionRepo.CreateAsync(transaction);
         transaction.Id = id;
 
-        var categories = (await _categoryRepo.GetByUserIdAsync(userId)).ToDictionary(c => c.Id);
+        Dictionary<int, Category> categories = (await _categoryRepo.GetByUserIdAsync(userId)).ToDictionary(c => c.Id);
         return MapToDto(transaction, categories);
     }
 
     public async Task<TransactionDto> UpdateAsync(int userId, int transactionId, UpdateTransactionRequest request)
     {
-        var transaction = await _transactionRepo.GetByIdAsync(transactionId)
+        Transaction transaction = await _transactionRepo.GetByIdAsync(transactionId)
                           ?? throw new KeyNotFoundException($"Transaction {transactionId} not found.");
 
         if (transaction.UserId != userId)
+        {
             throw new UnauthorizedAccessException("Transaction does not belong to you.");
+        }
 
         if (request.CategoryId.HasValue)
         {
-            var cat = await _categoryRepo.GetByIdAsync(request.CategoryId.Value)
+            Category cat = await _categoryRepo.GetByIdAsync(request.CategoryId.Value)
                       ?? throw new KeyNotFoundException($"Category {request.CategoryId} not found.");
             if (cat.UserId != userId)
+            {
                 throw new UnauthorizedAccessException("Category does not belong to you.");
+            }
         }
 
         transaction.Amount = request.Amount;
@@ -88,17 +96,19 @@ public class TransactionService : ITransactionService
 
         await _transactionRepo.UpdateAsync(transaction);
 
-        var categories = (await _categoryRepo.GetByUserIdAsync(userId)).ToDictionary(c => c.Id);
+        Dictionary<int, Category> categories = (await _categoryRepo.GetByUserIdAsync(userId)).ToDictionary(c => c.Id);
         return MapToDto(transaction, categories);
     }
 
     public async Task DeleteAsync(int userId, int transactionId)
     {
-        var transaction = await _transactionRepo.GetByIdAsync(transactionId)
+        Transaction transaction = await _transactionRepo.GetByIdAsync(transactionId)
                           ?? throw new KeyNotFoundException($"Transaction {transactionId} not found.");
 
         if (transaction.UserId != userId)
+        {
             throw new UnauthorizedAccessException("Transaction does not belong to you.");
+        }
 
         await _transactionRepo.DeleteAsync(transactionId);
     }
@@ -109,7 +119,7 @@ public class TransactionService : ITransactionService
         Amount = t.Amount,
         Type = t.Type,
         CategoryId = t.CategoryId,
-        CategoryName = t.CategoryId.HasValue && categories.TryGetValue(t.CategoryId.Value, out var cat)
+        CategoryName = t.CategoryId.HasValue && categories.TryGetValue(t.CategoryId.Value, out Category? cat)
             ? cat.Name : null,
         Date = t.Date,
         Description = t.Description,

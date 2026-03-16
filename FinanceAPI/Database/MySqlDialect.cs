@@ -5,7 +5,7 @@ namespace FinanceAPI.Database;
 
 public class MySqlDialect : ISqlDialect
 {
-    public string Year(string column)  => $"YEAR(STR_TO_DATE({column}, '%Y-%m-%d'))";
+    public string Year(string column) => $"YEAR(STR_TO_DATE({column}, '%Y-%m-%d'))";
     public string Month(string column) => $"MONTH(STR_TO_DATE({column}, '%Y-%m-%d'))";
 
     public string CaseInsensitiveEqual(string column, string paramName)
@@ -18,7 +18,9 @@ public class MySqlDialect : ISqlDialect
         // SELECT LAST_INSERT_ID() would run on a different pooled connection and return 0.
         // Opening explicitly keeps both calls on the same connection.
         if (conn.State != System.Data.ConnectionState.Open)
+        {
             conn.Open();
+        }
 
         await conn.ExecuteAsync(sql, param);
         return (int)await conn.ExecuteScalarAsync<long>("SELECT LAST_INSERT_ID()");

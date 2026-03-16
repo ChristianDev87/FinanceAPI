@@ -8,8 +8,8 @@ namespace FinanceAPI.Tests.Unit;
 
 public class TransactionServiceTests
 {
-    private readonly Mock<ITransactionRepository> _txRepo  = new();
-    private readonly Mock<ICategoryRepository>    _catRepo = new();
+    private readonly Mock<ITransactionRepository> _txRepo = new();
+    private readonly Mock<ICategoryRepository> _catRepo = new();
     private readonly TransactionService _sut;
 
     public TransactionServiceTests()
@@ -22,16 +22,21 @@ public class TransactionServiceTests
 
     private static Transaction MakeTx(int id, int userId, decimal amount = 50m) => new()
     {
-        Id     = id,
+        Id = id,
         UserId = userId,
         Amount = amount,
-        Type   = "expense",
-        Date   = "2026-01-01"
+        Type = "expense",
+        Date = "2026-01-01"
     };
 
     private static Category MakeCat(int id, int userId) => new()
     {
-        Id = id, UserId = userId, Name = "Food", Color = "#fff", Type = "expense", SortOrder = 0
+        Id = id,
+        UserId = userId,
+        Name = "Food",
+        Color = "#fff",
+        Type = "expense",
+        SortOrder = 0
     };
 
     // ── GetAll ────────────────────────────────────────────────────
@@ -42,7 +47,7 @@ public class TransactionServiceTests
         _txRepo.Setup(r => r.GetByUserIdAsync(1, null, null, null, null))
                .ReturnsAsync(new[] { MakeTx(1, 1, 100m), MakeTx(2, 1, 200m) });
 
-        var result = (await _sut.GetAllAsync(1, null, null, null, null)).ToList();
+        List<TransactionDto> result = (await _sut.GetAllAsync(1, null, null, null, null)).ToList();
 
         Assert.Equal(2, result.Count);
         Assert.Equal(100m, result[0].Amount);
@@ -55,7 +60,7 @@ public class TransactionServiceTests
         _txRepo.Setup(r => r.GetByUserIdAsync(1, 3, 2026, null, "expense"))
                .ReturnsAsync(new[] { MakeTx(1, 1) });
 
-        var result = (await _sut.GetAllAsync(1, 3, 2026, null, "expense")).ToList();
+        List<TransactionDto> result = (await _sut.GetAllAsync(1, 3, 2026, null, "expense")).ToList();
 
         Assert.Single(result);
         _txRepo.Verify(r => r.GetByUserIdAsync(1, 3, 2026, null, "expense"), Times.Once);
@@ -68,7 +73,7 @@ public class TransactionServiceTests
     {
         _txRepo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(MakeTx(1, 1, 150m));
 
-        var result = await _sut.GetByIdAsync(1, 1);
+        TransactionDto result = await _sut.GetByIdAsync(1, 1);
 
         Assert.Equal(1, result.Id);
         Assert.Equal(150m, result.Amount);
@@ -97,11 +102,11 @@ public class TransactionServiceTests
     {
         _txRepo.Setup(r => r.CreateAsync(It.IsAny<Transaction>())).ReturnsAsync(10);
 
-        var result = await _sut.CreateAsync(1, new CreateTransactionRequest
+        TransactionDto result = await _sut.CreateAsync(1, new CreateTransactionRequest
         {
-            Amount     = 75m,
-            Type       = "expense",
-            Date       = "2026-03-01",
+            Amount = 75m,
+            Type = "expense",
+            Date = "2026-03-01",
             CategoryId = null
         });
 
@@ -117,11 +122,11 @@ public class TransactionServiceTests
         _catRepo.Setup(r => r.GetByUserIdAsync(1)).ReturnsAsync(new[] { MakeCat(3, 1) });
         _txRepo.Setup(r => r.CreateAsync(It.IsAny<Transaction>())).ReturnsAsync(11);
 
-        var result = await _sut.CreateAsync(1, new CreateTransactionRequest
+        TransactionDto result = await _sut.CreateAsync(1, new CreateTransactionRequest
         {
-            Amount     = 30m,
-            Type       = "expense",
-            Date       = "2026-03-02",
+            Amount = 30m,
+            Type = "expense",
+            Date = "2026-03-02",
             CategoryId = 3
         });
 
@@ -137,7 +142,10 @@ public class TransactionServiceTests
         await Assert.ThrowsAsync<KeyNotFoundException>(() =>
             _sut.CreateAsync(1, new CreateTransactionRequest
             {
-                Amount = 10m, Type = "expense", Date = "2026-01-01", CategoryId = 99
+                Amount = 10m,
+                Type = "expense",
+                Date = "2026-01-01",
+                CategoryId = 99
             }));
     }
 
@@ -149,7 +157,10 @@ public class TransactionServiceTests
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             _sut.CreateAsync(1, new CreateTransactionRequest
             {
-                Amount = 10m, Type = "expense", Date = "2026-01-01", CategoryId = 3
+                Amount = 10m,
+                Type = "expense",
+                Date = "2026-01-01",
+                CategoryId = 3
             }));
     }
 
@@ -160,15 +171,15 @@ public class TransactionServiceTests
     {
         _txRepo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(MakeTx(1, 1, 50m));
 
-        var result = await _sut.UpdateAsync(1, 1, new UpdateTransactionRequest
+        TransactionDto result = await _sut.UpdateAsync(1, 1, new UpdateTransactionRequest
         {
-            Amount     = 99m,
-            Type       = "income",
-            Date       = "2026-06-01",
+            Amount = 99m,
+            Type = "income",
+            Date = "2026-06-01",
             CategoryId = null
         });
 
-        Assert.Equal(99m,    result.Amount);
+        Assert.Equal(99m, result.Amount);
         Assert.Equal("income", result.Type);
         _txRepo.Verify(r => r.UpdateAsync(It.IsAny<Transaction>()), Times.Once);
     }
@@ -181,7 +192,9 @@ public class TransactionServiceTests
         await Assert.ThrowsAsync<KeyNotFoundException>(() =>
             _sut.UpdateAsync(1, 99, new UpdateTransactionRequest
             {
-                Amount = 10m, Type = "expense", Date = "2026-01-01"
+                Amount = 10m,
+                Type = "expense",
+                Date = "2026-01-01"
             }));
     }
 
@@ -193,7 +206,9 @@ public class TransactionServiceTests
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             _sut.UpdateAsync(1, 1, new UpdateTransactionRequest
             {
-                Amount = 10m, Type = "expense", Date = "2026-01-01"
+                Amount = 10m,
+                Type = "expense",
+                Date = "2026-01-01"
             }));
     }
 

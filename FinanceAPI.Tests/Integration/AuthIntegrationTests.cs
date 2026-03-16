@@ -16,15 +16,15 @@ public class AuthIntegrationTests : IClassFixture<FinanceApiFactory>
     [Fact]
     public async Task Register_ValidRequest_Returns200WithToken()
     {
-        var response = await _client.PostAsJsonAsync("/api/auth/register", new
+        HttpResponseMessage response = await _client.PostAsJsonAsync("/api/auth/register", new
         {
             username = "auth_reg1",
-            email    = "auth_reg1@test.com",
+            email = "auth_reg1@test.com",
             password = "Password123!"
         });
 
         response.EnsureSuccessStatusCode();
-        var result = await response.Content.ReadFromJsonAsync<AuthResponse>();
+        AuthResponse? result = await response.Content.ReadFromJsonAsync<AuthResponse>();
         Assert.NotNull(result?.Token);
         Assert.NotEmpty(result.Token);
         Assert.Equal("Auth_reg1", result.User.Username);
@@ -37,14 +37,14 @@ public class AuthIntegrationTests : IClassFixture<FinanceApiFactory>
         await _client.PostAsJsonAsync("/api/auth/register", new
         {
             username = "dup_user_auth",
-            email    = "dup_user_auth@test.com",
+            email = "dup_user_auth@test.com",
             password = "Password123!"
         });
 
-        var response = await _client.PostAsJsonAsync("/api/auth/register", new
+        HttpResponseMessage response = await _client.PostAsJsonAsync("/api/auth/register", new
         {
             username = "dup_user_auth",
-            email    = "different_auth@test.com",
+            email = "different_auth@test.com",
             password = "Password123!"
         });
 
@@ -57,14 +57,14 @@ public class AuthIntegrationTests : IClassFixture<FinanceApiFactory>
         await _client.PostAsJsonAsync("/api/auth/register", new
         {
             username = "email_orig_auth",
-            email    = "shared_email_auth@test.com",
+            email = "shared_email_auth@test.com",
             password = "Password123!"
         });
 
-        var response = await _client.PostAsJsonAsync("/api/auth/register", new
+        HttpResponseMessage response = await _client.PostAsJsonAsync("/api/auth/register", new
         {
             username = "email_other_auth",
-            email    = "shared_email_auth@test.com",
+            email = "shared_email_auth@test.com",
             password = "Password123!"
         });
 
@@ -77,18 +77,18 @@ public class AuthIntegrationTests : IClassFixture<FinanceApiFactory>
         await _client.PostAsJsonAsync("/api/auth/register", new
         {
             username = "login_test_auth",
-            email    = "login_test_auth@test.com",
+            email = "login_test_auth@test.com",
             password = "Password123!"
         });
 
-        var response = await _client.PostAsJsonAsync("/api/auth/login", new
+        HttpResponseMessage response = await _client.PostAsJsonAsync("/api/auth/login", new
         {
             username = "login_test_auth",
             password = "Password123!"
         });
 
         response.EnsureSuccessStatusCode();
-        var result = await response.Content.ReadFromJsonAsync<AuthResponse>();
+        AuthResponse? result = await response.Content.ReadFromJsonAsync<AuthResponse>();
         Assert.NotNull(result?.Token);
         Assert.Equal("Login_test_auth", result.User.Username);
     }
@@ -99,11 +99,11 @@ public class AuthIntegrationTests : IClassFixture<FinanceApiFactory>
         await _client.PostAsJsonAsync("/api/auth/register", new
         {
             username = "wrongpass_auth",
-            email    = "wrongpass_auth@test.com",
+            email = "wrongpass_auth@test.com",
             password = "Password123!"
         });
 
-        var response = await _client.PostAsJsonAsync("/api/auth/login", new
+        HttpResponseMessage response = await _client.PostAsJsonAsync("/api/auth/login", new
         {
             username = "wrongpass_auth",
             password = "WrongPassword!"
@@ -115,7 +115,7 @@ public class AuthIntegrationTests : IClassFixture<FinanceApiFactory>
     [Fact]
     public async Task Login_UnknownUser_Returns404()
     {
-        var response = await _client.PostAsJsonAsync("/api/auth/login", new
+        HttpResponseMessage response = await _client.PostAsJsonAsync("/api/auth/login", new
         {
             username = "nobody_at_all",
             password = "Password123!"
@@ -127,7 +127,7 @@ public class AuthIntegrationTests : IClassFixture<FinanceApiFactory>
     [Fact]
     public async Task ProtectedEndpoint_WithoutToken_Returns401()
     {
-        var response = await _client.GetAsync("/api/categories");
+        HttpResponseMessage response = await _client.GetAsync("/api/categories");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }

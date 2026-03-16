@@ -29,7 +29,7 @@ public class CategoriesController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<CategoryDto>> Create([FromBody] CreateCategoryRequest request)
     {
-        var result = await _categoryService.CreateAsync(UserId, request);
+        CategoryDto result = await _categoryService.CreateAsync(UserId, request);
         return CreatedAtAction(nameof(GetAll), null, result);
     }
 
