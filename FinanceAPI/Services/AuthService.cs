@@ -130,7 +130,7 @@ public class AuthService : IAuthService
     public string GenerateToken(User user)
     {
         IConfigurationSection jwtSettings = _config.GetSection("JwtSettings");
-        SymmetricSecurityKey key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["SecretKey"]!));
+        SymmetricSecurityKey key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["SecretKey"]!)) { KeyId = "finance-api-key" };
         SigningCredentials creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
         Claim[] claims = new[]
