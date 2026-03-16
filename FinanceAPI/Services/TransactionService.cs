@@ -53,6 +53,10 @@ public class TransactionService : ITransactionService
             {
                 throw new UnauthorizedAccessException("Category does not belong to you.");
             }
+            if (!string.Equals(category.Type, request.Type, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ArgumentException($"Category type '{category.Type}' does not match transaction type '{request.Type}'.");
+            }
         }
 
         Transaction transaction = new Transaction
@@ -89,6 +93,10 @@ public class TransactionService : ITransactionService
             if (category.UserId != userId)
             {
                 throw new UnauthorizedAccessException("Category does not belong to you.");
+            }
+            if (!string.Equals(category.Type, request.Type, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ArgumentException($"Category type '{category.Type}' does not match transaction type '{request.Type}'.");
             }
         }
 

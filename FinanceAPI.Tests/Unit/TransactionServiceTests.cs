@@ -164,6 +164,37 @@ public class TransactionServiceTests
             }));
     }
 
+    [Fact]
+    public async Task CreateAsync_CategoryTypeMismatch_ThrowsArgumentException()
+    {
+        _catRepo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(new Category { Id = 1, UserId = 1, Type = "income" });
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            _sut.CreateAsync(1, new CreateTransactionRequest
+            {
+                Amount = 10m,
+                Type = "expense",
+                Date = "2026-01-01",
+                CategoryId = 1
+            }));
+    }
+
+    [Fact]
+    public async Task UpdateAsync_CategoryTypeMismatch_ThrowsArgumentException()
+    {
+        _txRepo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(MakeTx(1, 1));
+        _catRepo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(new Category { Id = 1, UserId = 1, Type = "income" });
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            _sut.UpdateAsync(1, 1, new UpdateTransactionRequest
+            {
+                Amount = 10m,
+                Type = "expense",
+                Date = "2026-01-01",
+                CategoryId = 1
+            }));
+    }
+
     // ── Update ────────────────────────────────────────────────────
 
     [Fact]

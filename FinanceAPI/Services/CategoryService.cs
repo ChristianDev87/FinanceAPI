@@ -46,6 +46,12 @@ public class CategoryService : ICategoryService
             throw new UnauthorizedAccessException("Category does not belong to you.");
         }
 
+        if (!string.Equals(category.Type, request.Type, StringComparison.OrdinalIgnoreCase)
+            && await _categoryRepo.HasTransactionsAsync(categoryId))
+        {
+            throw new InvalidOperationException("Cannot change the type of a category that has existing transactions.");
+        }
+
         category.Name = request.Name;
         category.Color = request.Color;
         category.Type = request.Type;

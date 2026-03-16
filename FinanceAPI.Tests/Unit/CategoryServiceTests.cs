@@ -122,6 +122,22 @@ public class CategoryServiceTests
             }));
     }
 
+    [Fact]
+    public async Task UpdateAsync_TypeChangedWithExistingTransactions_ThrowsInvalidOperationException()
+    {
+        _repo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(MakeCat(1, 1)); // Type = "expense"
+        _repo.Setup(r => r.HasTransactionsAsync(1)).ReturnsAsync(true);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _sut.UpdateAsync(1, 1, new UpdateCategoryRequest
+            {
+                Name = "Food",
+                Color = "#ff0000",
+                Type = "income",
+                SortOrder = 0
+            }));
+    }
+
     // ── Delete ────────────────────────────────────────────────────
 
     [Fact]
