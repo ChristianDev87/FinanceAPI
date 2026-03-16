@@ -136,6 +136,42 @@ public class UserServiceTests
             }));
     }
 
+    [Fact]
+    public async Task UpdateAsync_InactiveAdmin_DemotionSkipsLastAdminGuard()
+    {
+        User inactiveAdmin = new User
+        {
+            Id = 1, Username = "alice", Email = "alice@test.com",
+            PasswordHash = "hash", RoleName = "Admin", IsActive = false
+        };
+        _userRepo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(inactiveAdmin);
+        _userRepo.Setup(r => r.GetByUsernameAsync("alice")).ReturnsAsync(inactiveAdmin);
+        _userRepo.Setup(r => r.GetByEmailAsync("alice@test.com")).ReturnsAsync(inactiveAdmin);
+
+        // Demoting an already-inactive admin must not query the admin count
+        await _sut.UpdateAsync(1, new UpdateUserRequest { Username = "alice", Email = "alice@test.com", Role = "User" }, allowRoleChange: true);
+
+        _userRepo.Verify(r => r.CountActiveAdminsAsync(), Times.Never);
+        _userRepo.Verify(r => r.UpdateAsync(It.IsAny<User>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task SetActiveAsync_AlreadyInactiveAdmin_SkipsLastAdminGuard()
+    {
+        User inactiveAdmin = new User
+        {
+            Id = 1, Username = "alice", Email = "alice@test.com",
+            PasswordHash = "hash", RoleName = "Admin", IsActive = false
+        };
+        _userRepo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(inactiveAdmin);
+
+        // Setting an already-inactive admin to false again must not query the admin count
+        await _sut.SetActiveAsync(1, false);
+
+        _userRepo.Verify(r => r.CountActiveAdminsAsync(), Times.Never);
+        _userRepo.Verify(r => r.SetActiveAsync(1, false), Times.Once);
+    }
+
     // ── Delete ────────────────────────────────────────────────────
 
     [Fact]

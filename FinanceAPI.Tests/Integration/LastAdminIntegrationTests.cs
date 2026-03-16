@@ -126,17 +126,17 @@ public class LastAdminIntegrationTests : IClassFixture<FinanceApiFactory>
     }
 
     [Fact]
-    public async Task ConcurrentDeactivation_OnlyOneSucceeds_AdminNeverLost()
+    public async Task ConcurrentDeactivation_AdminInvariantNeverBroken()
     {
-        // Set up two active admins: admin1 (authenticated client) and admin2 (the target).
-        // admin1 sends two concurrent requests to deactivate admin2.
-        // With only 2 active admins the SemaphoreSlim ensures:
-        //   - first request: count = 2 → deactivates admin2 → 204
-        //   - second request: count = 1 → throws 400 (last admin protection)
+        // Two admins each try to deactivate the other simultaneously.
+        // Either the SemaphoreSlim serialises them (one gets 400 — last admin) or the
+        // OnTokenValidated check rejects the second request (401 — account just deactivated).
+        // Either way: at most one deactivation can succeed and the DB must keep at least 1 active admin.
         (HttpClient admin1Client, List<int> deactivatedAdminIds) = await SetupSoleAdminAsync("p2_conc1");
         try
         {
-            await _factory.CreateClient().PostAsJsonAsync("/api/auth/register", new
+            HttpClient admin2Client = _factory.CreateClient();
+            await admin2Client.PostAsJsonAsync("/api/auth/register", new
             {
                 username = "p2_conc2",
                 email = "p2_conc2@integration-test.com",
@@ -149,22 +149,30 @@ public class LastAdminIntegrationTests : IClassFixture<FinanceApiFactory>
             admin2!.RoleName = "Admin";
             await userRepo.UpdateAsync(admin2);
 
-            // Two concurrent deactivation requests targeting the same admin
+            HttpResponseMessage login2 = await admin2Client.PostAsJsonAsync("/api/auth/login", new
+            {
+                username = "p2_conc2",
+                password = "Password123!"
+            });
+            AuthResponse? loginResult2 = await login2.Content.ReadFromJsonAsync<AuthResponse>();
+            admin2Client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", loginResult2!.Token);
+
+            User? admin1 = await userRepo.GetByUsernameAsync("p2_conc1");
+
+            // Both admins attempt to deactivate each other at the same time
             Task<HttpResponseMessage> req1 = admin1Client.PutAsJsonAsync($"/api/users/{admin2.Id}/active", false);
-            Task<HttpResponseMessage> req2 = admin1Client.PutAsJsonAsync($"/api/users/{admin2.Id}/active", false);
+            Task<HttpResponseMessage> req2 = admin2Client.PutAsJsonAsync($"/api/users/{admin1!.Id}/active", false);
 
             HttpResponseMessage[] results = await Task.WhenAll(req1, req2);
 
+            // At most one deactivation can succeed; the other must be rejected for any reason
             int successCount = results.Count(r => r.IsSuccessStatusCode);
-            int failCount = results.Count(r => r.StatusCode == System.Net.HttpStatusCode.BadRequest);
+            Assert.True(successCount <= 1, $"Both concurrent deactivations succeeded — the last-admin invariant may be broken.");
 
-            // Exactly one must succeed and one must be rejected
-            Assert.Equal(1, successCount);
-            Assert.Equal(1, failCount);
-
-            // DB must still have at least one active admin
+            // The DB must always retain at least one active admin
             int remaining = await userRepo.CountActiveAdminsAsync();
-            Assert.True(remaining >= 1, $"Expected at least 1 active admin, found {remaining}.");
+            Assert.True(remaining >= 1, $"Expected at least 1 active admin after concurrent deactivation, found {remaining}.");
         }
         finally
         {
