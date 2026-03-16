@@ -1,3 +1,4 @@
+using System.Data;
 using Dapper;
 
 namespace FinanceAPI.Database;
@@ -22,26 +23,30 @@ public class DatabaseInitializer
     {
         _logger.LogInformation("Initializing database...");
 
-        var provider = _configuration["DatabaseSettings:Provider"] ?? "sqlite";
-        var schemaFile = provider.ToLowerInvariant() switch
+        string provider = _configuration["DatabaseSettings:Provider"] ?? "sqlite";
+        string schemaFile = provider.ToLowerInvariant() switch
         {
             "postgresql" or "postgres" => "schema.postgresql.sql",
-            "mysql"                    => "schema.mysql.sql",
-            _                          => "schema.sql"
+            "mysql" => "schema.mysql.sql",
+            _ => "schema.sql"
         };
 
-        var schemaPath = Path.Combine(AppContext.BaseDirectory, "Database", schemaFile);
+        string schemaPath = Path.Combine(AppContext.BaseDirectory, "Database", schemaFile);
         if (!File.Exists(schemaPath))
+        {
             schemaPath = Path.Combine(Directory.GetCurrentDirectory(), "Database", schemaFile);
+        }
 
         // Fallback to schema.sql for backward compatibility
         if (!File.Exists(schemaPath))
+        {
             schemaPath = Path.Combine(AppContext.BaseDirectory, "Database", "schema.sql");
+        }
 
-        var schema = await File.ReadAllTextAsync(schemaPath);
+        string schema = await File.ReadAllTextAsync(schemaPath);
 
-        var normalizedProvider = provider.ToLowerInvariant();
-        using var connection = _connectionFactory.CreateConnection();
+        string normalizedProvider = provider.ToLowerInvariant();
+        using IDbConnection connection = _connectionFactory.CreateConnection();
 
         // Acquire a provider-specific advisory lock so concurrent app instances
         // (e.g. multiple xUnit test factories against a shared database) don't race
@@ -59,18 +64,34 @@ public class DatabaseInitializer
 
         try
         {
-            var statements = schema.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            foreach (var statement in statements)
+            string[] statements = schema.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            foreach (string statement in statements)
             {
-                if (string.IsNullOrWhiteSpace(statement)) continue;
-                try
+                if (string.IsNullOrWhiteSpace(statement))
                 {
-                    await connection.ExecuteAsync(statement);
+                    continue;
                 }
-                catch (Exception ex) when (IsAlreadyExistsError(ex, normalizedProvider, statement))
+
+                const int maxAttempts = 3;
+                for (int attempt = 1; attempt <= maxAttempts; attempt++)
                 {
-                    // Object already exists — safe to skip on subsequent startups
-                    _logger.LogDebug("Statement skipped (already exists): {Message}", ex.Message);
+                    try
+                    {
+                        await connection.ExecuteAsync(statement);
+                        break;
+                    }
+                    catch (Exception ex) when (IsAlreadyExistsError(ex, normalizedProvider, statement))
+                    {
+                        // Object already exists — safe to skip on subsequent startups
+                        _logger.LogDebug("Statement skipped (already exists): {Message}", ex.Message);
+                        break;
+                    }
+                    catch (Exception ex) when (IsDeadlockError(ex, normalizedProvider) && attempt < maxAttempts)
+                    {
+                        _logger.LogWarning("Deadlock on schema init attempt {Attempt}/{Max}, retrying in {Delay}ms...",
+                            attempt, maxAttempts, 200 * attempt);
+                        await Task.Delay(200 * attempt);
+                    }
                 }
             }
         }
@@ -90,6 +111,10 @@ public class DatabaseInitializer
         _logger.LogInformation("Database initialized.");
     }
 
+    private static bool IsDeadlockError(Exception ex, string provider) =>
+        provider is "mysql" &&
+        ex is MySqlConnector.MySqlException { ErrorCode: MySqlConnector.MySqlErrorCode.LockDeadlock };
+
     /// <summary>
     /// Returns true when the exception indicates that the database object already exists
     /// and the statement can be safely skipped.
@@ -103,22 +128,28 @@ public class DatabaseInitializer
                 // 42P07 = duplicate_table, 42701 = duplicate_column, 42P01 = undefined_table (ADD COLUMN on missing table)
                 // 23505 = unique_violation (concurrent INSERT of seed rows), 42710 = duplicate_object (index)
                 if (ex is Npgsql.PostgresException pg)
+                {
                     return pg.SqlState is "42P07" or "42701" or "23505" or "42710";
+                }
+
                 return false;
 
             case "mysql":
                 // 1050 = table already exists, 1060 = duplicate column, 1061 = duplicate key name (index)
                 // 1062 = duplicate entry (seed rows), 1005 = can't create table (FK already satisfied)
                 if (ex is MySqlConnector.MySqlException my)
+                {
                     return my.ErrorCode is MySqlConnector.MySqlErrorCode.TableExists
                                         or MySqlConnector.MySqlErrorCode.DuplicateFieldName
                                         or MySqlConnector.MySqlErrorCode.DuplicateKeyName
                                         or MySqlConnector.MySqlErrorCode.DuplicateKeyEntry;
+                }
+
                 return false;
 
             default: // SQLite — isolated in-memory databases per factory, only migration statements can fail
-                return statement.Contains("ADD COLUMN",          StringComparison.OrdinalIgnoreCase)
-                    || statement.Contains("CREATE INDEX",        StringComparison.OrdinalIgnoreCase)
+                return statement.Contains("ADD COLUMN", StringComparison.OrdinalIgnoreCase)
+                    || statement.Contains("CREATE INDEX", StringComparison.OrdinalIgnoreCase)
                     || statement.Contains("CREATE UNIQUE INDEX", StringComparison.OrdinalIgnoreCase);
         }
     }

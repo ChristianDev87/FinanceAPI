@@ -27,7 +27,7 @@ public class ErrorHandlingMiddleware
 
     private async Task HandleExceptionAsync(HttpContext context, Exception ex)
     {
-        var (statusCode, message) = ex switch
+        (int statusCode, string? message) = ex switch
         {
             UnauthorizedAccessException => (StatusCodes.Status401Unauthorized, ex.Message),
             KeyNotFoundException => (StatusCodes.Status404NotFound, ex.Message),
@@ -37,7 +37,9 @@ public class ErrorHandlingMiddleware
         };
 
         if (statusCode == 500)
+        {
             _logger.LogError(ex, "Unhandled exception");
+        }
 
         context.Response.ContentType = "application/json";
         context.Response.StatusCode = statusCode;

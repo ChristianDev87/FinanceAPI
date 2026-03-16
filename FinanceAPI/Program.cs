@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
-var builder = WebApplication.CreateBuilder(args);
+WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
 // ── Controllers ────────────────────────────────────────────────
 builder.Services.AddControllers();
@@ -42,7 +42,7 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 // ── Database ────────────────────────────────────────────────────
-var provider = builder.Configuration["DatabaseSettings:Provider"] ?? "sqlite";
+string provider = builder.Configuration["DatabaseSettings:Provider"] ?? "sqlite";
 
 IDbConnectionFactory dbFactory;
 ISqlDialect dialect;
@@ -65,27 +65,29 @@ switch (provider.ToLowerInvariant())
     default: // sqlite
         // Resolve relative paths against ContentRootPath so the location is
         // consistent regardless of working directory (dev, published, Docker, …)
-        var rawConnStr = builder.Configuration.GetConnectionString("DefaultConnection");
+        string? rawConnStr = builder.Configuration.GetConnectionString("DefaultConnection");
 
         // In test environments the factory replaces IDbConnectionFactory, so a missing
         // connection string is expected. In all other environments it is a fatal misconfiguration.
         if (rawConnStr is null && !builder.Environment.IsEnvironment("Testing"))
+        {
             throw new InvalidOperationException(
                 "ConnectionStrings:DefaultConnection is not configured. " +
                 "Copy appsettings.example.json to appsettings.json and set a valid connection string.");
+        }
 
-        var connectionString = rawConnStr ?? string.Empty;
+        string connectionString = rawConnStr ?? string.Empty;
 
         if (rawConnStr is not null)
         {
-            var dataSource = rawConnStr.Split(';')
+            string? dataSource = rawConnStr.Split(';')
                 .Select(p => p.Trim())
                 .FirstOrDefault(p => p.StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase))
                 ?.Substring("Data Source=".Length);
 
             if (dataSource is not null && !Path.IsPathRooted(dataSource))
             {
-                var fullPath = Path.GetFullPath(dataSource, builder.Environment.ContentRootPath);
+                string fullPath = Path.GetFullPath(dataSource, builder.Environment.ContentRootPath);
                 Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
                 connectionString = $"Data Source={fullPath}";
             }
@@ -114,7 +116,7 @@ builder.Services.AddScoped<ITransactionService, TransactionService>();
 builder.Services.AddScoped<IStatisticsService, StatisticsService>();
 
 // ── JWT Auth ────────────────────────────────────────────────────
-var jwtSettings = builder.Configuration.GetSection("JwtSettings");
+IConfigurationSection jwtSettings = builder.Configuration.GetSection("JwtSettings");
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -134,7 +136,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 
 // ── CORS ─────────────────────────────────────────────────────────
-var allowedOrigins = builder.Configuration
+string[] allowedOrigins = builder.Configuration
     .GetSection("CorsSettings:AllowedOrigins")
     .Get<string[]>() ?? Array.Empty<string>();
 
@@ -158,12 +160,12 @@ builder.Services.AddCors(options =>
 });
 
 // ═════════════════════════════════════════════════════════════════
-var app = builder.Build();
+WebApplication app = builder.Build();
 
 // ── DB Init ──────────────────────────────────────────────────────
-using (var scope = app.Services.CreateScope())
+using (IServiceScope scope = app.Services.CreateScope())
 {
-    var dbInit = scope.ServiceProvider.GetRequiredService<DatabaseInitializer>();
+    DatabaseInitializer dbInit = scope.ServiceProvider.GetRequiredService<DatabaseInitializer>();
     await dbInit.InitializeAsync();
 }
 

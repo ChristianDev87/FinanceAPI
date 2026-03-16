@@ -1,3 +1,4 @@
+using System.Data;
 using Dapper;
 using FinanceAPI.Database;
 using FinanceAPI.Interfaces.Repositories;
@@ -18,7 +19,7 @@ public class TransactionRepository : ITransactionRepository
 
     public async Task<Transaction?> GetByIdAsync(int id)
     {
-        using var conn = _connectionFactory.CreateConnection();
+        using IDbConnection conn = _connectionFactory.CreateConnection();
         return await conn.QuerySingleOrDefaultAsync<Transaction>(
             "SELECT * FROM Transactions WHERE Id = @Id", new { Id = id });
     }
@@ -26,10 +27,10 @@ public class TransactionRepository : ITransactionRepository
     public async Task<IEnumerable<Transaction>> GetByUserIdAsync(
         int userId, int? month, int? year, int? categoryId, string? type)
     {
-        using var conn = _connectionFactory.CreateConnection();
+        using IDbConnection conn = _connectionFactory.CreateConnection();
 
-        var sql = "SELECT * FROM Transactions WHERE UserId = @UserId";
-        var parameters = new DynamicParameters();
+        string sql = "SELECT * FROM Transactions WHERE UserId = @UserId";
+        DynamicParameters parameters = new DynamicParameters();
         parameters.Add("UserId", userId);
 
         if (month.HasValue)
@@ -59,7 +60,7 @@ public class TransactionRepository : ITransactionRepository
 
     public async Task<int> CreateAsync(Transaction transaction)
     {
-        using var conn = _connectionFactory.CreateConnection();
+        using IDbConnection conn = _connectionFactory.CreateConnection();
         return await _dialect.InsertAsync(conn,
             "INSERT INTO Transactions (UserId, Amount, Type, CategoryId, Date, Description) VALUES (@UserId, @Amount, @Type, @CategoryId, @Date, @Description)",
             transaction);
@@ -67,7 +68,7 @@ public class TransactionRepository : ITransactionRepository
 
     public async Task UpdateAsync(Transaction transaction)
     {
-        using var conn = _connectionFactory.CreateConnection();
+        using IDbConnection conn = _connectionFactory.CreateConnection();
         await conn.ExecuteAsync(
             """
             UPDATE Transactions
@@ -79,7 +80,7 @@ public class TransactionRepository : ITransactionRepository
 
     public async Task DeleteAsync(int id)
     {
-        using var conn = _connectionFactory.CreateConnection();
+        using IDbConnection conn = _connectionFactory.CreateConnection();
         await conn.ExecuteAsync("DELETE FROM Transactions WHERE Id = @Id", new { Id = id });
     }
 }

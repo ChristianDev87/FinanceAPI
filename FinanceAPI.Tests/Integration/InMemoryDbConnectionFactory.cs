@@ -21,7 +21,7 @@ public sealed class InMemoryDbConnectionFactory : IDbConnectionFactory
 
     public IDbConnection CreateConnection()
     {
-        var conn = new SqliteConnection(_connectionString);
+        SqliteConnection conn = new SqliteConnection(_connectionString);
         conn.Open();
         return conn;
     }

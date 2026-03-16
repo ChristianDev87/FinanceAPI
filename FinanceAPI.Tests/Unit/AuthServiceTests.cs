@@ -15,14 +15,14 @@ public class AuthServiceTests
 
     public AuthServiceTests()
     {
-        var settings = new Dictionary<string, string?>
+        Dictionary<string, string?> settings = new Dictionary<string, string?>
         {
             { "JwtSettings:SecretKey", "super-secret-key-for-testing-only-32-chars!!" },
             { "JwtSettings:Issuer",    "FinanceAPI-Test" },
             { "JwtSettings:Audience",  "FinanceAPI-Test" },
             { "JwtSettings:ExpirationHours", "1" },
         };
-        var config = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
+        IConfigurationRoot config = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
         _sut = new AuthService(_userRepo.Object, _categoryRepo.Object, config);
 
         // Default: at least one existing user so new registrations receive "User" role
@@ -39,10 +39,10 @@ public class AuthServiceTests
         _userRepo.Setup(r => r.GetByEmailAsync("alice@test.com")).ReturnsAsync((User?)null);
         _userRepo.Setup(r => r.CreateAsync(It.IsAny<User>())).ReturnsAsync(1);
 
-        var result = await _sut.RegisterAsync(new RegisterRequest
+        AuthResponse result = await _sut.RegisterAsync(new RegisterRequest
         {
             Username = "alice",
-            Email    = "alice@test.com",
+            Email = "alice@test.com",
             Password = "Password123!"
         });
 
@@ -60,7 +60,7 @@ public class AuthServiceTests
         _userRepo.Setup(r => r.CreateAsync(It.IsAny<User>())).ReturnsAsync(42);
 
         // Config with 2 default categories
-        var settings = new Dictionary<string, string?>
+        Dictionary<string, string?> settings = new Dictionary<string, string?>
         {
             { "JwtSettings:SecretKey",       "super-secret-key-for-testing-only-32-chars!!" },
             { "JwtSettings:Issuer",           "FinanceAPI-Test" },
@@ -73,8 +73,8 @@ public class AuthServiceTests
             { "DefaultCategories:1:Type",     "expense" },
             { "DefaultCategories:1:Color",    "#e74a3b" },
         };
-        var config = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
-        var sut = new AuthService(_userRepo.Object, _categoryRepo.Object, config);
+        IConfigurationRoot config = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
+        AuthService sut = new AuthService(_userRepo.Object, _categoryRepo.Object, config);
 
         await sut.RegisterAsync(new RegisterRequest { Username = "bob", Email = "bob@test.com", Password = "pass" });
 
@@ -91,7 +91,7 @@ public class AuthServiceTests
             _sut.RegisterAsync(new RegisterRequest
             {
                 Username = "alice",
-                Email    = "other@test.com",
+                Email = "other@test.com",
                 Password = "Password123!"
             }));
     }
@@ -107,7 +107,7 @@ public class AuthServiceTests
             _sut.RegisterAsync(new RegisterRequest
             {
                 Username = "alice",
-                Email    = "alice@test.com",
+                Email = "alice@test.com",
                 Password = "Password123!"
             }));
     }
@@ -117,15 +117,19 @@ public class AuthServiceTests
     [Fact]
     public async Task LoginAsync_ValidCredentials_ReturnsToken()
     {
-        var hash = BCrypt.Net.BCrypt.HashPassword("Password123!", workFactor: 4);
+        string hash = BCrypt.Net.BCrypt.HashPassword("Password123!", workFactor: 4);
         _userRepo.Setup(r => r.GetByUsernameAsync("alice"))
                  .ReturnsAsync(new User
                  {
-                     Id = 1, Username = "alice", Email = "alice@test.com",
-                     PasswordHash = hash, RoleName = "User", IsActive = true
+                     Id = 1,
+                     Username = "alice",
+                     Email = "alice@test.com",
+                     PasswordHash = hash,
+                     RoleName = "User",
+                     IsActive = true
                  });
 
-        var result = await _sut.LoginAsync(new LoginRequest { Username = "alice", Password = "Password123!" });
+        AuthResponse result = await _sut.LoginAsync(new LoginRequest { Username = "alice", Password = "Password123!" });
 
         Assert.NotNull(result.Token);
         Assert.Equal("alice", result.User.Username);
@@ -143,7 +147,7 @@ public class AuthServiceTests
     [Fact]
     public async Task LoginAsync_WrongPassword_ThrowsKeyNotFoundException()
     {
-        var hash = BCrypt.Net.BCrypt.HashPassword("correct", workFactor: 4);
+        string hash = BCrypt.Net.BCrypt.HashPassword("correct", workFactor: 4);
         _userRepo.Setup(r => r.GetByUsernameAsync("alice"))
                  .ReturnsAsync(new User { Id = 1, Username = "alice", PasswordHash = hash, IsActive = true });
 
@@ -154,11 +158,14 @@ public class AuthServiceTests
     [Fact]
     public async Task LoginAsync_LockedAccount_ThrowsUnauthorizedAccessException()
     {
-        var hash = BCrypt.Net.BCrypt.HashPassword("Password123!", workFactor: 4);
+        string hash = BCrypt.Net.BCrypt.HashPassword("Password123!", workFactor: 4);
         _userRepo.Setup(r => r.GetByUsernameAsync("alice"))
                  .ReturnsAsync(new User
                  {
-                     Id = 1, Username = "alice", PasswordHash = hash, IsActive = false
+                     Id = 1,
+                     Username = "alice",
+                     PasswordHash = hash,
+                     IsActive = false
                  });
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>

@@ -15,13 +15,13 @@ public static class TestHelpers
         string username,
         string password = "Password123!")
     {
-        var client = factory.CreateClient();
+        HttpClient client = factory.CreateClient();
 
         // Try to register; if the user already exists we fall through to login
-        var regResponse = await client.PostAsJsonAsync("/api/auth/register", new
+        HttpResponseMessage regResponse = await client.PostAsJsonAsync("/api/auth/register", new
         {
             username,
-            email    = $"{username}@integration-test.com",
+            email = $"{username}@integration-test.com",
             password
         });
 
@@ -29,19 +29,19 @@ public static class TestHelpers
 
         if (regResponse.IsSuccessStatusCode)
         {
-            var regResult = await regResponse.Content.ReadFromJsonAsync<AuthResponse>();
+            AuthResponse? regResult = await regResponse.Content.ReadFromJsonAsync<AuthResponse>();
             token = regResult!.Token;
         }
         else
         {
             // User already exists — log in
-            var loginResponse = await client.PostAsJsonAsync("/api/auth/login", new
+            HttpResponseMessage loginResponse = await client.PostAsJsonAsync("/api/auth/login", new
             {
                 username,
                 password
             });
             loginResponse.EnsureSuccessStatusCode();
-            var loginResult = await loginResponse.Content.ReadFromJsonAsync<AuthResponse>();
+            AuthResponse? loginResult = await loginResponse.Content.ReadFromJsonAsync<AuthResponse>();
             token = loginResult!.Token;
         }
 

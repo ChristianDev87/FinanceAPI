@@ -5,7 +5,7 @@ namespace FinanceAPI.Database;
 
 public class PostgreSqlDialect : ISqlDialect
 {
-    public string Year(string column)  => $"CAST(EXTRACT(YEAR FROM {column}::date) AS INTEGER)";
+    public string Year(string column) => $"CAST(EXTRACT(YEAR FROM {column}::date) AS INTEGER)";
     public string Month(string column) => $"CAST(EXTRACT(MONTH FROM {column}::date) AS INTEGER)";
 
     public string CaseInsensitiveEqual(string column, string paramName)

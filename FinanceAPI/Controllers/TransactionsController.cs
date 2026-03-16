@@ -39,7 +39,7 @@ public class TransactionsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<TransactionDto>> Create([FromBody] CreateTransactionRequest request)
     {
-        var result = await _transactionService.CreateAsync(UserId, request);
+        TransactionDto result = await _transactionService.CreateAsync(UserId, request);
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
 

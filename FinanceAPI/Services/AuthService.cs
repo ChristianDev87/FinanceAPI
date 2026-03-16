@@ -45,15 +45,21 @@ public class AuthService : IAuthService
         string role = "User";
 
         if (await _userRepo.GetByUsernameAsync(request.Username) is not null)
+        {
             throw new ArgumentException("Username ist bereits vergeben.");
+        }
 
         if (await _userRepo.GetByEmailAsync(request.Email) is not null)
+        {
             throw new ArgumentException("Email ist bereits registiert.");
+        }
 
         if (!(await _userRepo.GetAllAsync()).Any())
+        {
             role = "Admin";
-        
-        var user = new User
+        }
+
+        User user = new User
         {
             Username = string.Concat(request.Username[0].ToString().ToUpper(), request.Username.AsSpan(1)), //First letter uppercase for username
             Email = request.Email,
@@ -61,14 +67,14 @@ public class AuthService : IAuthService
             RoleName = role
         };
 
-        var userId = await _userRepo.CreateAsync(user);
+        int userId = await _userRepo.CreateAsync(user);
         user.Id = userId;
 
         // Assign default categories
-        var defaultCategories = _config.GetSection("DefaultCategories").Get<List<DefaultCategoryConfig>>() ?? new();
-        for (var i = 0; i < defaultCategories.Count; i++)
+        List<DefaultCategoryConfig> defaultCategories = _config.GetSection("DefaultCategories").Get<List<DefaultCategoryConfig>>() ?? new();
+        for (int i = 0; i < defaultCategories.Count; i++)
         {
-            var cat = defaultCategories[i];
+            DefaultCategoryConfig cat = defaultCategories[i];
             await _categoryRepo.CreateAsync(new Category
             {
                 UserId = userId,
@@ -94,14 +100,18 @@ public class AuthService : IAuthService
 
     public async Task<AuthResponse> LoginAsync(LoginRequest request)
     {
-        var user = await _userRepo.GetByUsernameAsync(request.Username)
+        User user = await _userRepo.GetByUsernameAsync(request.Username)
                    ?? throw new KeyNotFoundException("Username/Passwort ungültig.");
 
         if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+        {
             throw new KeyNotFoundException("Username/Passwort ungültig.");
+        }
 
         if (!user.IsActive)
+        {
             throw new UnauthorizedAccessException("Dieses Konto wurde gesperrt.");
+        }
 
         return new AuthResponse
         {
@@ -118,11 +128,11 @@ public class AuthService : IAuthService
 
     public string GenerateToken(User user)
     {
-        var jwtSettings = _config.GetSection("JwtSettings");
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["SecretKey"]!));
-        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+        IConfigurationSection jwtSettings = _config.GetSection("JwtSettings");
+        SymmetricSecurityKey key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["SecretKey"]!));
+        SigningCredentials creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
-        var claims = new[]
+        Claim[] claims = new[]
         {
             new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
@@ -131,7 +141,7 @@ public class AuthService : IAuthService
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 
-        var token = new JwtSecurityToken(
+        JwtSecurityToken token = new JwtSecurityToken(
             issuer: jwtSettings["Issuer"],
             audience: jwtSettings["Audience"],
             claims: claims,

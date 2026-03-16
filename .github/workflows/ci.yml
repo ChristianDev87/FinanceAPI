@@ -138,6 +138,17 @@ jobs:
           files: "./TestResults/results.trx"
           check_name: "Test Results (sqlite)"
 
+  lint:
+    runs-on: [ self-hosted, linux, dotnet10 ]
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Restore
+        run: dotnet restore
+      - name: Format Check
+        run: dotnet format style --verify-no-changes --verbosity diagnostic
+
   build:
     runs-on: [ self-hosted, linux, dotnet10 ]
     if: github.event_name == 'push'

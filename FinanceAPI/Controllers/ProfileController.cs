@@ -4,6 +4,7 @@ using FinanceAPI.DTOs.Profile;
 using FinanceAPI.DTOs.Users;
 using FinanceAPI.Interfaces.Repositories;
 using FinanceAPI.Interfaces.Services;
+using FinanceAPI.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -14,13 +15,13 @@ namespace FinanceAPI.Controllers;
 [Authorize]
 public class ProfileController : ControllerBase
 {
-    private readonly IUserService    _userService;
+    private readonly IUserService _userService;
     private readonly IUserRepository _userRepo;
 
     public ProfileController(IUserService userService, IUserRepository userRepo)
     {
         _userService = userService;
-        _userRepo    = userRepo;
+        _userRepo = userRepo;
     }
 
     private int GetUserId() =>
@@ -30,7 +31,7 @@ public class ProfileController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetProfile()
     {
-        var dto = await _userService.GetByIdAsync(GetUserId());
+        UserDto dto = await _userService.GetByIdAsync(GetUserId());
         return Ok(dto);
     }
 
@@ -38,16 +39,16 @@ public class ProfileController : ControllerBase
     [HttpPut]
     public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequest request)
     {
-        var current = await _userService.GetByIdAsync(GetUserId());
+        UserDto current = await _userService.GetByIdAsync(GetUserId());
 
-        var updateRequest = new UpdateUserRequest
+        UpdateUserRequest updateRequest = new UpdateUserRequest
         {
             Username = request.Username,
-            Email    = request.Email,
-            Role     = current.Role   // role cannot be changed via profile
+            Email = request.Email,
+            Role = current.Role   // role cannot be changed via profile
         };
 
-        var dto = await _userService.UpdateAsync(GetUserId(), updateRequest);
+        UserDto dto = await _userService.UpdateAsync(GetUserId(), updateRequest);
         return Ok(dto);
     }
 
@@ -55,13 +56,15 @@ public class ProfileController : ControllerBase
     [HttpPut("password")]
     public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
     {
-        var user = await _userRepo.GetByIdAsync(GetUserId())
+        User user = await _userRepo.GetByIdAsync(GetUserId())
                    ?? throw new KeyNotFoundException("User not found.");
 
         if (!BCrypt.Net.BCrypt.Verify(request.CurrentPassword, user.PasswordHash))
+        {
             throw new UnauthorizedAccessException("Aktuelles Passwort ist falsch.");
+        }
 
-        var newHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword, workFactor: 12);
+        string newHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword, workFactor: 12);
         await _userRepo.UpdatePasswordAsync(user.Id, newHash);
 
         return NoContent();
@@ -86,7 +89,7 @@ public class ProfileController : ControllerBase
     [HttpPost("apikeys")]
     public async Task<ActionResult<ApiKeyCreatedResponse>> CreateApiKey([FromBody] CreateApiKeyRequest request)
     {
-        var result = await _userService.CreateApiKeyAsync(GetUserId(), request.Name);
+        ApiKeyCreatedResponse result = await _userService.CreateApiKeyAsync(GetUserId(), request.Name);
         return Ok(result);
     }
 
