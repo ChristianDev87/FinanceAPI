@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Text;
 using FinanceAPI.Database;
 using FinanceAPI.Interfaces.Repositories;
@@ -166,6 +167,31 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
             ValidIssuer = jwt["Issuer"],
             ValidAudience = jwt["Audience"],
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key)) { KeyId = "finance-api-key" }
+        };
+
+        // Re-validate user status on every authenticated request so that
+        // deactivated or deleted accounts are rejected immediately, without
+        // waiting for the JWT to expire naturally.
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = async context =>
+            {
+                string? userIdStr = context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (!int.TryParse(userIdStr, out int userId))
+                {
+                    context.Fail("Invalid user identifier claim.");
+                    return;
+                }
+
+                IUserRepository userRepo = context.HttpContext.RequestServices
+                    .GetRequiredService<IUserRepository>();
+
+                var user = await userRepo.GetByIdAsync(userId);
+                if (user is null || !user.IsActive)
+                {
+                    context.Fail("User account is disabled or does not exist.");
+                }
+            }
         };
     });
 
