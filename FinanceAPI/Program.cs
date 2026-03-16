@@ -191,6 +191,22 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
                 if (user is null || !user.IsActive)
                 {
                     context.Fail("User account is disabled or does not exist.");
+                    return;
+                }
+
+                // If the role stored in the token no longer matches the DB, rebuild the
+                // ClaimsPrincipal so that role changes take effect immediately without
+                // requiring a new login.
+                ClaimsPrincipal currentPrincipal = context.Principal!;
+                string? tokenRole = currentPrincipal.FindFirstValue(ClaimTypes.Role);
+                if (!string.Equals(tokenRole, user.RoleName, StringComparison.Ordinal))
+                {
+                    List<Claim> updatedClaims = currentPrincipal.Claims
+                        .Where(c => c.Type != ClaimTypes.Role)
+                        .Append(new Claim(ClaimTypes.Role, user.RoleName))
+                        .ToList();
+                    ClaimsIdentity identity = new ClaimsIdentity(updatedClaims, "Bearer");
+                    context.Principal = new ClaimsPrincipal(identity);
                 }
             }
         };
