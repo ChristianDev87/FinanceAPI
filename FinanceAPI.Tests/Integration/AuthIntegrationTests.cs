@@ -132,4 +132,30 @@ public class AuthIntegrationTests : IClassFixture<FinanceApiFactory>
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
+
+    [Fact]
+    public async Task Register_TooLongUsername_Returns400()
+    {
+        HttpResponseMessage response = await _client.PostAsJsonAsync("/api/auth/register", new
+        {
+            username = new string('a', 101),
+            email = "toolong_user@test.com",
+            password = "Password123!"
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Register_TooLongEmail_Returns400()
+    {
+        HttpResponseMessage response = await _client.PostAsJsonAsync("/api/auth/register", new
+        {
+            username = "toolongemail",
+            email = new string('a', 250) + "@x.com",
+            password = "Password123!"
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
 }

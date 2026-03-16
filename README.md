@@ -24,6 +24,15 @@ A multi-user personal finance REST API built with .NET 10, Dapper and SQLite, Po
 | Authentication | JWT Bearer + SHA-256 API keys |
 | API docs | Swashbuckle / OpenAPI |
 
+## Deployment Model
+
+This application is designed for **single-instance deployment**. Two operational invariants are enforced in-process using `SemaphoreSlim`:
+
+- The first registered user is automatically assigned the `Admin` role.
+- At least one active `Admin` must exist at all times.
+
+Both invariants are **not safe under multi-replica deployments** (e.g. Kubernetes with replicas > 1, or multiple Docker containers behind a load balancer). Running multiple instances can cause races that break these guarantees. If horizontal scaling is required, these invariants must be moved to the database layer (e.g. conditional UPDATE/DELETE with row-level locking).
+
 ## Getting Started
 
 ### Prerequisites

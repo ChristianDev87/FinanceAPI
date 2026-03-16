@@ -58,7 +58,7 @@ public class UserService : IUserService
             throw new ArgumentException("Email already in use.");
         }
 
-        if (allowRoleChange && user.RoleName == "Admin" && request.Role != "Admin")
+        if (allowRoleChange && user.RoleName == "Admin" && user.IsActive && request.Role != "Admin")
         {
             await _adminMutationLock.WaitAsync();
             try
@@ -124,7 +124,7 @@ public class UserService : IUserService
         User user = await _userRepo.GetByIdAsync(id)
             ?? throw new KeyNotFoundException($"User {id} not found.");
 
-        if (!isActive && user.RoleName == "Admin")
+        if (!isActive && user.RoleName == "Admin" && user.IsActive)
         {
             await _adminMutationLock.WaitAsync();
             try

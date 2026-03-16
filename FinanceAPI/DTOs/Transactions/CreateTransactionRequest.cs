@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using FinanceAPI.Validation;
 
 namespace FinanceAPI.DTOs.Transactions;
 
@@ -15,7 +16,7 @@ public class CreateTransactionRequest
     public int? CategoryId { get; set; }
 
     [Required]
-    [RegularExpression(@"^\d{4}-\d{2}-\d{2}$", ErrorMessage = "Date must be in YYYY-MM-DD format")]
+    [ValidDate]
     public string Date { get; set; } = string.Empty;
 
     [MaxLength(500)]
