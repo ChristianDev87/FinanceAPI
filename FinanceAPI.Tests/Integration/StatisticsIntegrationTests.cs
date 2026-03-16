@@ -3,6 +3,7 @@ using FinanceAPI.DTOs.Statistics;
 
 namespace FinanceAPI.Tests.Integration;
 
+[Collection("IntegrationTests")]
 public class StatisticsIntegrationTests : IClassFixture<FinanceApiFactory>
 {
     private readonly FinanceApiFactory _factory;

@@ -4,6 +4,7 @@ using FinanceAPI.DTOs.Auth;
 
 namespace FinanceAPI.Tests.Integration;
 
+[Collection("IntegrationTests")]
 public class AuthIntegrationTests : IClassFixture<FinanceApiFactory>
 {
     private readonly HttpClient _client;

@@ -4,6 +4,7 @@ using FinanceAPI.DTOs.Categories;
 
 namespace FinanceAPI.Tests.Integration;
 
+[Collection("IntegrationTests")]
 public class CategoriesIntegrationTests : IClassFixture<FinanceApiFactory>
 {
     private readonly FinanceApiFactory _factory;
@@ -83,10 +84,11 @@ public class CategoriesIntegrationTests : IClassFixture<FinanceApiFactory>
         HttpResponseMessage createResp = await client.PostAsJsonAsync("/api/categories", new
         {
             name = "OldName",
-            color = "#fff",
+            color = "#ffffff",
             type = "expense",
             sortOrder = 0
         });
+        createResp.EnsureSuccessStatusCode();
         CategoryDto? created = await createResp.Content.ReadFromJsonAsync<CategoryDto>();
 
         HttpResponseMessage updateResp = await client.PutAsJsonAsync($"/api/categories/{created!.Id}", new
@@ -128,10 +130,11 @@ public class CategoriesIntegrationTests : IClassFixture<FinanceApiFactory>
         HttpResponseMessage createResp = await client.PostAsJsonAsync("/api/categories", new
         {
             name = "ToDelete",
-            color = "#abc",
+            color = "#aabbcc",
             type = "expense",
             sortOrder = 99
         });
+        createResp.EnsureSuccessStatusCode();
         CategoryDto? created = await createResp.Content.ReadFromJsonAsync<CategoryDto>();
 
         HttpResponseMessage deleteResp = await client.DeleteAsync($"/api/categories/{created!.Id}");
@@ -148,10 +151,11 @@ public class CategoriesIntegrationTests : IClassFixture<FinanceApiFactory>
         HttpResponseMessage createCatResp = await client.PostAsJsonAsync("/api/categories", new
         {
             name = "HasTransactions",
-            color = "#fff",
+            color = "#ffffff",
             type = "expense",
             sortOrder = 0
         });
+        createCatResp.EnsureSuccessStatusCode();
         CategoryDto? cat = await createCatResp.Content.ReadFromJsonAsync<CategoryDto>();
 
         // Attach a transaction
@@ -179,10 +183,11 @@ public class CategoriesIntegrationTests : IClassFixture<FinanceApiFactory>
         HttpResponseMessage createResp = await owner.PostAsJsonAsync("/api/categories", new
         {
             name = "Private",
-            color = "#fff",
+            color = "#ffffff",
             type = "expense",
             sortOrder = 0
         });
+        createResp.EnsureSuccessStatusCode();
         CategoryDto? cat = await createResp.Content.ReadFromJsonAsync<CategoryDto>();
 
         // Intruder tries to delete it
