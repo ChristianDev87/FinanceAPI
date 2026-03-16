@@ -126,6 +126,53 @@ public class LastAdminIntegrationTests : IClassFixture<FinanceApiFactory>
     }
 
     [Fact]
+    public async Task ConcurrentDeactivation_OnlyOneSucceeds_AdminNeverLost()
+    {
+        // Set up two active admins: admin1 (authenticated client) and admin2 (the target).
+        // admin1 sends two concurrent requests to deactivate admin2.
+        // With only 2 active admins the SemaphoreSlim ensures:
+        //   - first request: count = 2 → deactivates admin2 → 204
+        //   - second request: count = 1 → throws 400 (last admin protection)
+        (HttpClient admin1Client, List<int> deactivatedAdminIds) = await SetupSoleAdminAsync("p2_conc1");
+        try
+        {
+            await _factory.CreateClient().PostAsJsonAsync("/api/auth/register", new
+            {
+                username = "p2_conc2",
+                email = "p2_conc2@integration-test.com",
+                password = "Password123!"
+            });
+
+            using IServiceScope scope = _factory.Services.CreateScope();
+            IUserRepository userRepo = scope.ServiceProvider.GetRequiredService<IUserRepository>();
+            User? admin2 = await userRepo.GetByUsernameAsync("p2_conc2");
+            admin2!.RoleName = "Admin";
+            await userRepo.UpdateAsync(admin2);
+
+            // Two concurrent deactivation requests targeting the same admin
+            Task<HttpResponseMessage> req1 = admin1Client.PutAsJsonAsync($"/api/users/{admin2.Id}/active", false);
+            Task<HttpResponseMessage> req2 = admin1Client.PutAsJsonAsync($"/api/users/{admin2.Id}/active", false);
+
+            HttpResponseMessage[] results = await Task.WhenAll(req1, req2);
+
+            int successCount = results.Count(r => r.IsSuccessStatusCode);
+            int failCount = results.Count(r => r.StatusCode == System.Net.HttpStatusCode.BadRequest);
+
+            // Exactly one must succeed and one must be rejected
+            Assert.Equal(1, successCount);
+            Assert.Equal(1, failCount);
+
+            // DB must still have at least one active admin
+            int remaining = await userRepo.CountActiveAdminsAsync();
+            Assert.True(remaining >= 1, $"Expected at least 1 active admin, found {remaining}.");
+        }
+        finally
+        {
+            await ReactivateAdminsAsync(deactivatedAdminIds);
+        }
+    }
+
+    [Fact]
     public async Task Demotion_AllowedWhenSecondAdminExists_Returns200()
     {
         (HttpClient? admin1Client, List<int>? deactivatedAdminIds) = await SetupSoleAdminAsync("p2_admin1");

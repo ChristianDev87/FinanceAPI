@@ -11,6 +11,11 @@ namespace FinanceAPI.Services;
 
 public class UserService : IUserService
 {
+    // Serialises all operations that can reduce the active-admin count so that
+    // the "at least one active admin" invariant cannot be broken under parallelism.
+    // Note: single-process only — a distributed lock would be required for multi-node.
+    private static readonly SemaphoreSlim _adminMutationLock = new(1, 1);
+
     private readonly IUserRepository _userRepo;
     private readonly IApiKeyRepository _apiKeyRepo;
     private readonly IDbConnectionFactory _connectionFactory;
@@ -55,11 +60,26 @@ public class UserService : IUserService
 
         if (allowRoleChange && user.RoleName == "Admin" && request.Role != "Admin")
         {
-            int activeAdmins = await _userRepo.CountActiveAdminsAsync();
-            if (activeAdmins <= 1)
+            await _adminMutationLock.WaitAsync();
+            try
             {
-                throw new InvalidOperationException("Cannot demote the last active admin.");
+                int activeAdmins = await _userRepo.CountActiveAdminsAsync();
+                if (activeAdmins <= 1)
+                {
+                    throw new InvalidOperationException("Cannot demote the last active admin.");
+                }
+
+                user.Username = request.Username;
+                user.Email = request.Email;
+                user.RoleName = request.Role;
+                await _userRepo.UpdateAsync(user);
             }
+            finally
+            {
+                _adminMutationLock.Release();
+            }
+
+            return MapToDto(user);
         }
 
         user.Username = request.Username;
@@ -77,11 +97,23 @@ public class UserService : IUserService
 
         if (user.RoleName == "Admin" && user.IsActive)
         {
-            int activeAdmins = await _userRepo.CountActiveAdminsAsync();
-            if (activeAdmins <= 1)
+            await _adminMutationLock.WaitAsync();
+            try
             {
-                throw new InvalidOperationException("Cannot delete the last active admin.");
+                int activeAdmins = await _userRepo.CountActiveAdminsAsync();
+                if (activeAdmins <= 1)
+                {
+                    throw new InvalidOperationException("Cannot delete the last active admin.");
+                }
+
+                await _userRepo.DeleteAsync(user.Id);
             }
+            finally
+            {
+                _adminMutationLock.Release();
+            }
+
+            return;
         }
 
         await _userRepo.DeleteAsync(user.Id);
@@ -94,11 +126,23 @@ public class UserService : IUserService
 
         if (!isActive && user.RoleName == "Admin")
         {
-            int activeAdmins = await _userRepo.CountActiveAdminsAsync();
-            if (activeAdmins <= 1)
+            await _adminMutationLock.WaitAsync();
+            try
             {
-                throw new InvalidOperationException("Cannot deactivate the last active admin.");
+                int activeAdmins = await _userRepo.CountActiveAdminsAsync();
+                if (activeAdmins <= 1)
+                {
+                    throw new InvalidOperationException("Cannot deactivate the last active admin.");
+                }
+
+                await _userRepo.SetActiveAsync(id, isActive);
             }
+            finally
+            {
+                _adminMutationLock.Release();
+            }
+
+            return;
         }
 
         await _userRepo.SetActiveAsync(id, isActive);

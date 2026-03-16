@@ -161,8 +161,8 @@ Only the SHA-256 hash of the key is stored in the database. Creating a new key a
 | `User` | Default on registration | Own profile, categories, transactions, statistics, API keys |
 | `Admin` | Automatically assigned to the first registered user; afterwards assignable by an existing Admin via `PUT /api/users/{id}` | Everything above + full user management |
 
-> Role and lock-status changes take effect immediately for API key auth.
-> For JWT, the token remains valid until it expires. Users with a locked account cannot log in and receive no new tokens.
+> Role and lock-status changes take effect immediately for both API key auth and JWT.
+> On every authenticated request the user's current role and active status are verified against the database. A locked account is rejected with 401 even if a valid JWT is still present. A role change (e.g. Admin → User) is reflected immediately without requiring a new login.
 
 ## Project Structure
 
