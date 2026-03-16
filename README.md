@@ -68,7 +68,7 @@ https://localhost:7185/swagger
 
 ## API Reference
 
-All protected routes require either `Authorization: Bearer <jwt>` or `?apiKey=<key>`.
+All protected routes require either `Authorization: Bearer <jwt>` or `X-Api-Key: <key>`.
 
 ### Auth
 
@@ -145,10 +145,11 @@ Authorization: Bearer <token>
 
 API keys are generated via `POST /api/profile/apikeys` (self-service) or `POST /api/users/{id}/apikeys` (admin). The **plaintext key is returned only once** — store it securely immediately.
 
-Pass the key as a query parameter on any protected endpoint:
+Pass the key as a request header on any protected endpoint:
 
 ```
-GET /api/transactions?apiKey=<key>
+GET /api/transactions
+X-Api-Key: <key>
 ```
 
 Only the SHA-256 hash of the key is stored in the database. Creating a new key automatically deactivates all previous keys for that user.

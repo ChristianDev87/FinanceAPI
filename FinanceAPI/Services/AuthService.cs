@@ -1,7 +1,9 @@
+using System.Data;
 using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using FinanceAPI.Database;
 using FinanceAPI.DTOs.Auth;
 using FinanceAPI.Interfaces.Repositories;
 using FinanceAPI.Interfaces.Services;
@@ -20,12 +22,14 @@ public class AuthService : IAuthService
     private readonly IUserRepository _userRepo;
     private readonly ICategoryRepository _categoryRepo;
     private readonly IConfiguration _config;
+    private readonly IDbConnectionFactory _connectionFactory;
 
-    public AuthService(IUserRepository userRepo, ICategoryRepository categoryRepo, IConfiguration config)
+    public AuthService(IUserRepository userRepo, ICategoryRepository categoryRepo, IConfiguration config, IDbConnectionFactory connectionFactory)
     {
         _userRepo = userRepo;
         _categoryRepo = categoryRepo;
         _config = config;
+        _connectionFactory = connectionFactory;
     }
 
     public async Task<AuthResponse> RegisterAsync(RegisterRequest request)
@@ -68,22 +72,38 @@ public class AuthService : IAuthService
             RoleName = role
         };
 
-        int userId = await _userRepo.CreateAsync(user);
-        user.Id = userId;
-
-        // Assign default categories
         List<DefaultCategoryConfig> defaultCategories = _config.GetSection("DefaultCategories").Get<List<DefaultCategoryConfig>>() ?? new();
-        for (int i = 0; i < defaultCategories.Count; i++)
+
+        using IDbConnection conn = _connectionFactory.CreateConnection();
+        if (conn.State != ConnectionState.Open)
         {
-            DefaultCategoryConfig cat = defaultCategories[i];
-            await _categoryRepo.CreateAsync(new Category
+            conn.Open();
+        }
+
+        using IDbTransaction txn = conn.BeginTransaction();
+        try
+        {
+            user.Id = await _userRepo.CreateAsync(user, conn, txn);
+
+            for (int i = 0; i < defaultCategories.Count; i++)
             {
-                UserId = userId,
-                Name = cat.Name,
-                Color = cat.Color,
-                Type = cat.Type,
-                SortOrder = i
-            });
+                DefaultCategoryConfig cat = defaultCategories[i];
+                await _categoryRepo.CreateAsync(new Category
+                {
+                    UserId = user.Id,
+                    Name = cat.Name,
+                    Color = cat.Color,
+                    Type = cat.Type,
+                    SortOrder = i
+                }, conn, txn);
+            }
+
+            txn.Commit();
+        }
+        catch
+        {
+            txn.Rollback();
+            throw;
         }
 
         return new AuthResponse

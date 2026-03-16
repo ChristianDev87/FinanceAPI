@@ -11,7 +11,7 @@ public class MySqlDialect : ISqlDialect
     public string CaseInsensitiveEqual(string column, string paramName)
         => $"LOWER({column}) = LOWER({paramName})";
 
-    public async Task<int> InsertAsync(IDbConnection conn, string sql, object param)
+    public async Task<int> InsertAsync(IDbConnection conn, string sql, object param, IDbTransaction? transaction = null)
     {
         // LAST_INSERT_ID() is connection-scoped in MySQL.
         // Dapper closes a non-open connection after each call, so a subsequent
@@ -22,7 +22,7 @@ public class MySqlDialect : ISqlDialect
             conn.Open();
         }
 
-        await conn.ExecuteAsync(sql, param);
-        return (int)await conn.ExecuteScalarAsync<long>("SELECT LAST_INSERT_ID()");
+        await conn.ExecuteAsync(sql, param, transaction: transaction);
+        return (int)await conn.ExecuteScalarAsync<long>("SELECT LAST_INSERT_ID()", transaction: transaction);
     }
 }

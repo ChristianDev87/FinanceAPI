@@ -60,6 +60,11 @@ public class UserRepository : IUserRepository
             user);
     }
 
+    public Task<int> CreateAsync(User user, IDbConnection conn, IDbTransaction txn)
+        => _dialect.InsertAsync(conn,
+            "INSERT INTO Users (Username, Email, PasswordHash, RoleName) VALUES (@Username, @Email, @PasswordHash, @RoleName)",
+            user, txn);
+
     public async Task UpdateAsync(User user)
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
@@ -88,5 +93,13 @@ public class UserRepository : IUserRepository
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
         await conn.ExecuteAsync("DELETE FROM Users WHERE Id = @Id", new { Id = id });
+    }
+
+    public async Task<int> CountActiveAdminsAsync()
+    {
+        using IDbConnection conn = _connectionFactory.CreateConnection();
+        return await conn.ExecuteScalarAsync<int>(
+            "SELECT COUNT(1) FROM Users WHERE RoleName = 'Admin' AND IsActive = @IsActive",
+            new { IsActive = true });
     }
 }

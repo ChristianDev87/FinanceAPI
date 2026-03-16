@@ -18,5 +18,6 @@ public class UpdateTransactionRequest
     [RegularExpression(@"^\d{4}-\d{2}-\d{2}$", ErrorMessage = "Date must be in YYYY-MM-DD format")]
     public string Date { get; set; } = string.Empty;
 
+    [MaxLength(500)]
     public string? Description { get; set; }
 }

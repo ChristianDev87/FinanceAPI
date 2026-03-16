@@ -33,6 +33,14 @@ public class CategoryRepository : ICategoryRepository
             "SELECT * FROM Categories WHERE Id = @Id", new { Id = id });
     }
 
+    public async Task<Category?> GetByUserIdAndNameAsync(int userId, string name)
+    {
+        using IDbConnection conn = _connectionFactory.CreateConnection();
+        return await conn.QuerySingleOrDefaultAsync<Category>(
+            $"SELECT * FROM Categories WHERE UserId = @UserId AND {_dialect.CaseInsensitiveEqual("Name", "@Name")}",
+            new { UserId = userId, Name = name });
+    }
+
     public async Task<int> CreateAsync(Category category)
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
@@ -40,6 +48,11 @@ public class CategoryRepository : ICategoryRepository
             "INSERT INTO Categories (UserId, Name, Color, Type, SortOrder) VALUES (@UserId, @Name, @Color, @Type, @SortOrder)",
             category);
     }
+
+    public Task<int> CreateAsync(Category category, IDbConnection conn, IDbTransaction txn)
+        => _dialect.InsertAsync(conn,
+            "INSERT INTO Categories (UserId, Name, Color, Type, SortOrder) VALUES (@UserId, @Name, @Color, @Type, @SortOrder)",
+            category, txn);
 
     public async Task UpdateAsync(Category category)
     {

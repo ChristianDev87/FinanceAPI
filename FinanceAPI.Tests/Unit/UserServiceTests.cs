@@ -1,3 +1,5 @@
+using System.Data;
+using FinanceAPI.Database;
 using FinanceAPI.DTOs.ApiKeys;
 using FinanceAPI.DTOs.Users;
 using FinanceAPI.Interfaces.Repositories;
@@ -11,11 +13,19 @@ public class UserServiceTests
 {
     private readonly Mock<IUserRepository> _userRepo = new();
     private readonly Mock<IApiKeyRepository> _apiKeyRepo = new();
+    private readonly Mock<IDbConnectionFactory> _connFactory = new();
     private readonly UserService _sut;
 
     public UserServiceTests()
     {
-        _sut = new UserService(_userRepo.Object, _apiKeyRepo.Object);
+        Mock<IDbTransaction> txn = new Mock<IDbTransaction>();
+        Mock<IDbConnection> conn = new Mock<IDbConnection>();
+        conn.Setup(c => c.BeginTransaction()).Returns(txn.Object);
+        conn.Setup(c => c.BeginTransaction(It.IsAny<IsolationLevel>())).Returns(txn.Object);
+        conn.SetupGet(c => c.State).Returns(ConnectionState.Open);
+        _connFactory.Setup(f => f.CreateConnection()).Returns(conn.Object);
+
+        _sut = new UserService(_userRepo.Object, _apiKeyRepo.Object, _connFactory.Object);
     }
 
     private static User MakeUser(int id, string username = "alice") => new()
@@ -227,7 +237,7 @@ public class UserServiceTests
     public async Task CreateApiKeyAsync_ExistingUser_ReturnsKeyWithPlaintext()
     {
         _userRepo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(MakeUser(1));
-        _apiKeyRepo.Setup(r => r.CreateAsync(It.IsAny<ApiKey>())).ReturnsAsync(10);
+        _apiKeyRepo.Setup(r => r.CreateAsync(It.IsAny<ApiKey>(), It.IsAny<IDbConnection>(), It.IsAny<IDbTransaction>())).ReturnsAsync(10);
         _apiKeyRepo.Setup(r => r.GetByIdAsync(10))
                    .ReturnsAsync(new ApiKey { Id = 10, UserId = 1, Name = "CI Key", IsActive = true, CreatedAt = "2026-01-01 00:00:00" });
 
@@ -236,7 +246,7 @@ public class UserServiceTests
         Assert.Equal(10, result.Id);
         Assert.Equal("CI Key", result.Name);
         Assert.NotEmpty(result.Key);
-        _apiKeyRepo.Verify(r => r.DeactivateAllForUserAsync(1), Times.Once);
+        _apiKeyRepo.Verify(r => r.DeactivateAllForUserAsync(1, It.IsAny<IDbConnection>(), It.IsAny<IDbTransaction>()), Times.Once);
     }
 
     [Fact]
