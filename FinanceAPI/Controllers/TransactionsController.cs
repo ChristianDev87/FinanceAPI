@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using FinanceAPI.DTOs.Transactions;
 using FinanceAPI.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -22,7 +23,7 @@ public class TransactionsController : AuthenticatedControllerBase
         [FromQuery] int? month,
         [FromQuery] int? year,
         [FromQuery] int? categoryId,
-        [FromQuery] string? type)
+        [FromQuery][RegularExpression("^(income|expense)$", ErrorMessage = "type must be 'income' or 'expense'.")] string? type)
     {
         return Ok(await _transactionService.GetAllAsync(UserId, month, year, categoryId, type));
     }

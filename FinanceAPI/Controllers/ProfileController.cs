@@ -1,9 +1,7 @@
 using FinanceAPI.DTOs.ApiKeys;
 using FinanceAPI.DTOs.Profile;
 using FinanceAPI.DTOs.Users;
-using FinanceAPI.Interfaces.Repositories;
 using FinanceAPI.Interfaces.Services;
-using FinanceAPI.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -15,12 +13,10 @@ namespace FinanceAPI.Controllers;
 public class ProfileController : AuthenticatedControllerBase
 {
     private readonly IUserService _userService;
-    private readonly IUserRepository _userRepo;
 
-    public ProfileController(IUserService userService, IUserRepository userRepo)
+    public ProfileController(IUserService userService)
     {
         _userService = userService;
-        _userRepo = userRepo;
     }
 
     // GET /api/profile
@@ -52,17 +48,7 @@ public class ProfileController : AuthenticatedControllerBase
     [HttpPut("password")]
     public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
     {
-        User user = await _userRepo.GetByIdAsync(UserId)
-                   ?? throw new KeyNotFoundException("User not found.");
-
-        if (!BCrypt.Net.BCrypt.Verify(request.CurrentPassword, user.PasswordHash))
-        {
-            throw new UnauthorizedAccessException("Current password is incorrect.");
-        }
-
-        string newHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword, workFactor: 12);
-        await _userRepo.UpdatePasswordAsync(user.Id, newHash);
-
+        await _userService.ChangePasswordAsync(UserId, request.CurrentPassword, request.NewPassword);
         return NoContent();
     }
 

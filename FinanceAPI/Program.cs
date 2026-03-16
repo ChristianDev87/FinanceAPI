@@ -12,6 +12,17 @@ using Microsoft.AspNetCore.RateLimiting;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
+// Kestrel: nur HTTP wenn DISABLE_HTTPS_REDIRECT gesetzt (z.B. Docker ohne Zertifikat)
+if (Environment.GetEnvironmentVariable("DISABLE_HTTPS_REDIRECT") == "true")
+{
+    builder.WebHost.ConfigureKestrel(options =>
+    {
+        options.ListenAnyIP(5281);
+    });
+}
+
+
+
 // ── Controllers ────────────────────────────────────────────────
 builder.Services.AddControllers();
 
@@ -194,13 +205,16 @@ using (IServiceScope scope = app.Services.CreateScope())
 app.UseMiddleware<ErrorHandlingMiddleware>();
 app.UseRateLimiter();
 
-if (app.Environment.IsDevelopment())
-{
+//if (app.Environment.IsDevelopment())
+//{
     app.UseSwagger();
     app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "FinanceAPI v1"));
-}
+//}
 
-app.UseHttpsRedirection();
+if (Environment.GetEnvironmentVariable("DISABLE_HTTPS_REDIRECT") != "true")
+{
+    app.UseHttpsRedirection();
+}
 app.UseCors();
 
 app.UseMiddleware<DualAuthMiddleware>();

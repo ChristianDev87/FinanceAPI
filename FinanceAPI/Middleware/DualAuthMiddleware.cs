@@ -29,7 +29,7 @@ public class DualAuthMiddleware
             if (apiKey is not null)
             {
                 User? user = await userRepo.GetByIdAsync(apiKey.UserId);
-                if (user is not null)
+                if (user is not null && user.IsActive)
                 {
                     Claim[] claims = new[]
                     {

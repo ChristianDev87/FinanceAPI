@@ -13,4 +13,6 @@ public interface IUserService
     Task<ApiKeyCreatedResponse> CreateApiKeyAsync(int userId, string keyName, int? createdByAdminId = null);
     Task<IEnumerable<ApiKeyDto>> GetApiKeysAsync(int userId);
     Task RevokeApiKeyAsync(int userId, int keyId);
+    Task ChangePasswordAsync(int userId, string currentPassword, string newPassword);
+    Task AdminSetPasswordAsync(int userId, string newPassword);
 }

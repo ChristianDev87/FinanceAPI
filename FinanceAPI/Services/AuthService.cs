@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
@@ -54,7 +55,7 @@ public class AuthService : IAuthService
             throw new ArgumentException("Email is already registered.");
         }
 
-        if (!(await _userRepo.GetAllAsync()).Any())
+        if (!await _userRepo.AnyAsync())
         {
             role = "Admin";
         }
@@ -101,16 +102,16 @@ public class AuthService : IAuthService
     public async Task<AuthResponse> LoginAsync(LoginRequest request)
     {
         User user = await _userRepo.GetByUsernameAsync(request.Username)
-                   ?? throw new KeyNotFoundException("Invalid username or password.");
-
-        if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
-        {
-            throw new KeyNotFoundException("Invalid username or password.");
-        }
+                   ?? throw new UnauthorizedAccessException("Invalid username or password.");
 
         if (!user.IsActive)
         {
             throw new UnauthorizedAccessException("This account has been deactivated.");
+        }
+
+        if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+        {
+            throw new UnauthorizedAccessException("Invalid username or password.");
         }
 
         return new AuthResponse
@@ -145,7 +146,7 @@ public class AuthService : IAuthService
             issuer: jwtSettings["Issuer"],
             audience: jwtSettings["Audience"],
             claims: claims,
-            expires: DateTime.UtcNow.AddHours(double.Parse(jwtSettings["ExpirationHours"]!)),
+            expires: DateTime.UtcNow.AddHours(double.Parse(jwtSettings["ExpirationHours"]!, CultureInfo.InvariantCulture)),
             signingCredentials: creds
         );
 

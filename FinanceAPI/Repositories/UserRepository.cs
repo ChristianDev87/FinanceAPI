@@ -46,6 +46,12 @@ public class UserRepository : IUserRepository
         return await conn.QueryAsync<User>("SELECT * FROM Users ORDER BY CreatedAt DESC");
     }
 
+    public async Task<bool> AnyAsync()
+    {
+        using IDbConnection conn = _connectionFactory.CreateConnection();
+        return await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM Users") > 0;
+    }
+
     public async Task<int> CreateAsync(User user)
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();

@@ -137,6 +137,27 @@ public class UserService : IUserService
         await _apiKeyRepo.DeactivateAsync(keyId);
     }
 
+    public async Task ChangePasswordAsync(int userId, string currentPassword, string newPassword)
+    {
+        User user = await _userRepo.GetByIdAsync(userId)
+                   ?? throw new KeyNotFoundException($"User {userId} not found.");
+
+        if (!BCrypt.Net.BCrypt.Verify(currentPassword, user.PasswordHash))
+        {
+            throw new UnauthorizedAccessException("Current password is incorrect.");
+        }
+
+        await _userRepo.UpdatePasswordAsync(userId, BCrypt.Net.BCrypt.HashPassword(newPassword, workFactor: 12));
+    }
+
+    public async Task AdminSetPasswordAsync(int userId, string newPassword)
+    {
+        _ = await _userRepo.GetByIdAsync(userId)
+            ?? throw new KeyNotFoundException($"User {userId} not found.");
+
+        await _userRepo.UpdatePasswordAsync(userId, BCrypt.Net.BCrypt.HashPassword(newPassword, workFactor: 12));
+    }
+
     private static UserDto MapToDto(User u) => new()
     {
         Id = u.Id,
