@@ -68,7 +68,7 @@ public class CategoriesIntegrationTests : IClassFixture<FinanceApiFactory>
         HttpResponseMessage response = await client.PostAsJsonAsync("/api/categories", new
         {
             name = "Test",
-            color = "#fff",
+            color = "#ffffff",
             type = "expense",
             sortOrder = 0
         });
@@ -94,7 +94,7 @@ public class CategoriesIntegrationTests : IClassFixture<FinanceApiFactory>
         HttpResponseMessage updateResp = await client.PutAsJsonAsync($"/api/categories/{created!.Id}", new
         {
             name = "NewName",
-            color = "#000",
+            color = "#000000",
             type = "income",
             sortOrder = 5
         });
@@ -114,7 +114,7 @@ public class CategoriesIntegrationTests : IClassFixture<FinanceApiFactory>
         HttpResponseMessage response = await client.PutAsJsonAsync("/api/categories/99999", new
         {
             name = "X",
-            color = "#fff",
+            color = "#ffffff",
             type = "expense",
             sortOrder = 0
         });

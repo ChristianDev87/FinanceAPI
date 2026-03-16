@@ -82,7 +82,7 @@ public class CategoryServiceTests
         CategoryDto result = await _sut.UpdateAsync(1, 1, new UpdateCategoryRequest
         {
             Name = "NewName",
-            Color = "#abc",
+            Color = "#aabbcc",
             Type = "income",
             SortOrder = 2
         });
