@@ -271,6 +271,9 @@ builder.Services.AddCors(options =>
     });
 });
 
+// ── Health checks ────────────────────────────────────────────────
+builder.Services.AddHealthChecks();
+
 // ═════════════════════════════════════════════════════════════════
 WebApplication app = builder.Build();
 
@@ -282,6 +285,21 @@ using (IServiceScope scope = app.Services.CreateScope())
 }
 
 // ── Middleware Pipeline ──────────────────────────────────────────
+
+// Attach a correlation ID to every response so clients and logs can be correlated.
+app.Use(async (context, next) =>
+{
+    context.Response.OnStarting(() =>
+    {
+        if (!context.Response.Headers.ContainsKey("X-Correlation-Id"))
+        {
+            context.Response.Headers["X-Correlation-Id"] = context.TraceIdentifier;
+        }
+        return Task.CompletedTask;
+    });
+    await next(context);
+});
+
 app.UseMiddleware<ErrorHandlingMiddleware>();
 app.UseRateLimiter();
 
@@ -302,6 +320,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHealthChecks("/health");
 
 app.Run();
 
