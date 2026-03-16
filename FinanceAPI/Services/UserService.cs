@@ -1,6 +1,7 @@
 using System.Data;
 using System.Security.Cryptography;
 using FinanceAPI.Database;
+using FinanceAPI.Domain;
 using FinanceAPI.DTOs.ApiKeys;
 using FinanceAPI.DTOs.Users;
 using FinanceAPI.Interfaces.Repositories;
@@ -58,7 +59,7 @@ public class UserService : IUserService
             throw new ArgumentException("Email already in use.");
         }
 
-        if (allowRoleChange && user.RoleName == "Admin" && user.IsActive && request.Role != "Admin")
+        if (allowRoleChange && user.RoleName == UserRoles.Admin && user.IsActive && request.Role != UserRoles.Admin)
         {
             await _adminMutationLock.WaitAsync();
             try
@@ -95,7 +96,7 @@ public class UserService : IUserService
         User user = await _userRepo.GetByIdAsync(id)
                    ?? throw new KeyNotFoundException($"User {id} not found.");
 
-        if (user.RoleName == "Admin" && user.IsActive)
+        if (user.RoleName == UserRoles.Admin && user.IsActive)
         {
             await _adminMutationLock.WaitAsync();
             try
@@ -124,7 +125,7 @@ public class UserService : IUserService
         User user = await _userRepo.GetByIdAsync(id)
             ?? throw new KeyNotFoundException($"User {id} not found.");
 
-        if (!isActive && user.RoleName == "Admin" && user.IsActive)
+        if (!isActive && user.RoleName == UserRoles.Admin && user.IsActive)
         {
             await _adminMutationLock.WaitAsync();
             try

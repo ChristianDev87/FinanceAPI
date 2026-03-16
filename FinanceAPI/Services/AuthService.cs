@@ -4,6 +4,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using FinanceAPI.Database;
+using FinanceAPI.Domain;
 using FinanceAPI.DTOs.Auth;
 using FinanceAPI.Interfaces.Repositories;
 using FinanceAPI.Interfaces.Services;
@@ -47,7 +48,7 @@ public class AuthService : IAuthService
 
     private async Task<AuthResponse> RegisterInternalAsync(RegisterRequest request)
     {
-        string role = "User";
+        string role = UserRoles.User;
 
         if (await _userRepo.GetByUsernameAsync(request.Username) is not null)
         {
@@ -61,7 +62,7 @@ public class AuthService : IAuthService
 
         if (!await _userRepo.AnyAsync())
         {
-            role = "Admin";
+            role = UserRoles.Admin;
         }
 
         User user = new User

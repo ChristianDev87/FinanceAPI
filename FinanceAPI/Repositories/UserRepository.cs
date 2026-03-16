@@ -1,6 +1,7 @@
 using System.Data;
 using Dapper;
 using FinanceAPI.Database;
+using FinanceAPI.Domain;
 using FinanceAPI.Interfaces.Repositories;
 using FinanceAPI.Models;
 
@@ -99,7 +100,7 @@ public class UserRepository : IUserRepository
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
         return await conn.ExecuteScalarAsync<int>(
-            "SELECT COUNT(1) FROM Users WHERE RoleName = 'Admin' AND IsActive = @IsActive",
-            new { IsActive = true });
+            "SELECT COUNT(1) FROM Users WHERE RoleName = @RoleName AND IsActive = @IsActive",
+            new { RoleName = UserRoles.Admin, IsActive = true });
     }
 }

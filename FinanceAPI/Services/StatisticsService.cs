@@ -1,6 +1,7 @@
 using System.Data;
 using Dapper;
 using FinanceAPI.Database;
+using FinanceAPI.Domain;
 using FinanceAPI.DTOs.Statistics;
 using FinanceAPI.Interfaces.Services;
 
@@ -58,8 +59,8 @@ public class StatisticsService : IStatisticsService
             {
                 Month = m,
                 Year = year,
-                TotalIncome = monthRows?.FirstOrDefault(r => r.Type == "income").Total ?? 0,
-                TotalExpense = monthRows?.FirstOrDefault(r => r.Type == "expense").Total ?? 0
+                TotalIncome = monthRows?.FirstOrDefault(r => r.Type == TransactionTypes.Income).Total ?? 0,
+                TotalExpense = monthRows?.FirstOrDefault(r => r.Type == TransactionTypes.Expense).Total ?? 0
             });
         }
 
