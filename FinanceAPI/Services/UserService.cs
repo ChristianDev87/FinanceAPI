@@ -1,4 +1,6 @@
+using System.Data;
 using System.Security.Cryptography;
+using FinanceAPI.Database;
 using FinanceAPI.DTOs.ApiKeys;
 using FinanceAPI.DTOs.Users;
 using FinanceAPI.Interfaces.Repositories;
@@ -11,11 +13,13 @@ public class UserService : IUserService
 {
     private readonly IUserRepository _userRepo;
     private readonly IApiKeyRepository _apiKeyRepo;
+    private readonly IDbConnectionFactory _connectionFactory;
 
-    public UserService(IUserRepository userRepo, IApiKeyRepository apiKeyRepo)
+    public UserService(IUserRepository userRepo, IApiKeyRepository apiKeyRepo, IDbConnectionFactory connectionFactory)
     {
         _userRepo = userRepo;
         _apiKeyRepo = apiKeyRepo;
+        _connectionFactory = connectionFactory;
     }
 
     public async Task<IEnumerable<UserDto>> GetAllAsync()
@@ -99,13 +103,11 @@ public class UserService : IUserService
         _ = await _userRepo.GetByIdAsync(userId)
             ?? throw new KeyNotFoundException($"User {userId} not found.");
 
-        await _apiKeyRepo.DeactivateAllForUserAsync(userId);
-
         byte[] rawBytes = RandomNumberGenerator.GetBytes(32);
         string rawKey = Convert.ToBase64String(rawBytes)
             .Replace('+', '-').Replace('/', '_').TrimEnd('=');
 
-        byte[] hashBytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(rawKey));
+        byte[] hashBytes = SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(rawKey));
         string keyHash = Convert.ToHexString(hashBytes).ToLowerInvariant();
 
         ApiKey apiKey = new ApiKey
@@ -117,13 +119,30 @@ public class UserService : IUserService
             CreatedByAdminId = createdByAdminId
         };
 
-        int id = await _apiKeyRepo.CreateAsync(apiKey);
-        ApiKey created = await _apiKeyRepo.GetByIdAsync(id)
-                        ?? throw new InvalidOperationException($"Failed to retrieve newly created API key {id}.");
+        int newKeyId;
+        using (IDbConnection conn = _connectionFactory.CreateConnection())
+        {
+            if (conn.State != ConnectionState.Open) conn.Open();
+            using IDbTransaction txn = conn.BeginTransaction();
+            try
+            {
+                await _apiKeyRepo.DeactivateAllForUserAsync(userId, conn, txn);
+                newKeyId = await _apiKeyRepo.CreateAsync(apiKey, conn, txn);
+                txn.Commit();
+            }
+            catch
+            {
+                txn.Rollback();
+                throw;
+            }
+        }
+
+        ApiKey created = await _apiKeyRepo.GetByIdAsync(newKeyId)
+                        ?? throw new InvalidOperationException($"Failed to retrieve newly created API key {newKeyId}.");
 
         return new ApiKeyCreatedResponse
         {
-            Id = id,
+            Id = newKeyId,
             Name = keyName,
             Key = rawKey,
             CreatedAt = created.CreatedAt

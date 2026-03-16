@@ -1,3 +1,5 @@
+using System.Data;
+using FinanceAPI.Database;
 using FinanceAPI.DTOs.Auth;
 using FinanceAPI.Interfaces.Repositories;
 using FinanceAPI.Models;
@@ -11,10 +13,19 @@ public class AuthServiceTests
 {
     private readonly Mock<IUserRepository> _userRepo = new();
     private readonly Mock<ICategoryRepository> _categoryRepo = new();
+    private readonly Mock<IDbConnectionFactory> _connFactory = new();
     private readonly AuthService _sut;
 
     public AuthServiceTests()
     {
+        // Wire up a mock connection + transaction so the transactional registration path works
+        var txn = new Mock<IDbTransaction>();
+        var conn = new Mock<IDbConnection>();
+        conn.Setup(c => c.BeginTransaction()).Returns(txn.Object);
+        conn.Setup(c => c.BeginTransaction(It.IsAny<IsolationLevel>())).Returns(txn.Object);
+        conn.SetupGet(c => c.State).Returns(ConnectionState.Open);
+        _connFactory.Setup(f => f.CreateConnection()).Returns(conn.Object);
+
         Dictionary<string, string?> settings = new Dictionary<string, string?>
         {
             { "JwtSettings:SecretKey", "super-secret-key-for-testing-only-32-chars!!" },
@@ -23,7 +34,7 @@ public class AuthServiceTests
             { "JwtSettings:ExpirationHours", "1" },
         };
         IConfigurationRoot config = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
-        _sut = new AuthService(_userRepo.Object, _categoryRepo.Object, config);
+        _sut = new AuthService(_userRepo.Object, _categoryRepo.Object, config, _connFactory.Object);
 
         // Default: at least one existing user so new registrations receive "User" role
         _userRepo.Setup(r => r.AnyAsync()).ReturnsAsync(true);
@@ -36,7 +47,7 @@ public class AuthServiceTests
     {
         _userRepo.Setup(r => r.GetByUsernameAsync("alice")).ReturnsAsync((User?)null);
         _userRepo.Setup(r => r.GetByEmailAsync("alice@test.com")).ReturnsAsync((User?)null);
-        _userRepo.Setup(r => r.CreateAsync(It.IsAny<User>())).ReturnsAsync(1);
+        _userRepo.Setup(r => r.CreateAsync(It.IsAny<User>(), It.IsAny<IDbConnection>(), It.IsAny<IDbTransaction>())).ReturnsAsync(1);
 
         AuthResponse result = await _sut.RegisterAsync(new RegisterRequest
         {
@@ -56,7 +67,7 @@ public class AuthServiceTests
     {
         _userRepo.Setup(r => r.GetByUsernameAsync(It.IsAny<string>())).ReturnsAsync((User?)null);
         _userRepo.Setup(r => r.GetByEmailAsync(It.IsAny<string>())).ReturnsAsync((User?)null);
-        _userRepo.Setup(r => r.CreateAsync(It.IsAny<User>())).ReturnsAsync(42);
+        _userRepo.Setup(r => r.CreateAsync(It.IsAny<User>(), It.IsAny<IDbConnection>(), It.IsAny<IDbTransaction>())).ReturnsAsync(42);
 
         // Config with 2 default categories
         Dictionary<string, string?> settings = new Dictionary<string, string?>
@@ -73,11 +84,11 @@ public class AuthServiceTests
             { "DefaultCategories:1:Color",    "#e74a3b" },
         };
         IConfigurationRoot config = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
-        AuthService sut = new AuthService(_userRepo.Object, _categoryRepo.Object, config);
+        AuthService sut = new AuthService(_userRepo.Object, _categoryRepo.Object, config, _connFactory.Object);
 
         await sut.RegisterAsync(new RegisterRequest { Username = "bob", Email = "bob@test.com", Password = "pass" });
 
-        _categoryRepo.Verify(r => r.CreateAsync(It.IsAny<FinanceAPI.Models.Category>()), Times.Exactly(2));
+        _categoryRepo.Verify(r => r.CreateAsync(It.IsAny<FinanceAPI.Models.Category>(), It.IsAny<IDbConnection>(), It.IsAny<IDbTransaction>()), Times.Exactly(2));
     }
 
     [Fact]

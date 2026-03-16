@@ -60,6 +60,11 @@ public class UserRepository : IUserRepository
             user);
     }
 
+    public Task<int> CreateAsync(User user, IDbConnection conn, IDbTransaction txn)
+        => _dialect.InsertAsync(conn,
+            "INSERT INTO Users (Username, Email, PasswordHash, RoleName) VALUES (@Username, @Email, @PasswordHash, @RoleName)",
+            user, txn);
+
     public async Task UpdateAsync(User user)
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();

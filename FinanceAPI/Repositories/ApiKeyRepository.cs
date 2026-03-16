@@ -47,6 +47,11 @@ public class ApiKeyRepository : IApiKeyRepository
             apiKey);
     }
 
+    public Task<int> CreateAsync(ApiKey apiKey, IDbConnection conn, IDbTransaction txn)
+        => _dialect.InsertAsync(conn,
+            "INSERT INTO ApiKeys (UserId, KeyHash, Name, IsActive, CreatedByAdminId) VALUES (@UserId, @KeyHash, @Name, @IsActive, @CreatedByAdminId)",
+            apiKey, txn);
+
     public async Task DeactivateAsync(int id)
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
@@ -62,4 +67,10 @@ public class ApiKeyRepository : IApiKeyRepository
             "UPDATE ApiKeys SET IsActive = @IsActive WHERE UserId = @UserId AND IsActive = @CurrentIsActive",
             new { UserId = userId, IsActive = false, CurrentIsActive = true });
     }
+
+    public Task DeactivateAllForUserAsync(int userId, IDbConnection conn, IDbTransaction txn)
+        => conn.ExecuteAsync(
+            "UPDATE ApiKeys SET IsActive = @IsActive WHERE UserId = @UserId AND IsActive = @CurrentIsActive",
+            new { UserId = userId, IsActive = false, CurrentIsActive = true },
+            transaction: txn);
 }
