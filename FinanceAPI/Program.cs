@@ -8,6 +8,7 @@ using FinanceAPI.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Microsoft.AspNetCore.RateLimiting;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -117,6 +118,15 @@ builder.Services.AddScoped<IStatisticsService, StatisticsService>();
 
 // ── JWT Auth ────────────────────────────────────────────────────
 IConfigurationSection jwtSettings = builder.Configuration.GetSection("JwtSettings");
+
+string jwtSecretKey = jwtSettings["SecretKey"]
+    ?? throw new InvalidOperationException("JwtSettings:SecretKey is not configured.");
+
+if (jwtSecretKey.Length < 32)
+{
+    throw new InvalidOperationException("JwtSettings:SecretKey must be at least 32 characters long.");
+}
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -128,12 +138,23 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuerSigningKey = true,
             ValidIssuer = jwtSettings["Issuer"],
             ValidAudience = jwtSettings["Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(jwtSettings["SecretKey"]!))
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecretKey))
         };
     });
 
 builder.Services.AddAuthorization();
+
+// ── Rate Limiting ────────────────────────────────────────────────
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddFixedWindowLimiter("auth", config =>
+    {
+        config.PermitLimit = 10;
+        config.Window = TimeSpan.FromMinutes(1);
+        config.QueueLimit = 0;
+    });
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+});
 
 // ── CORS ─────────────────────────────────────────────────────────
 string[] allowedOrigins = builder.Configuration
@@ -171,6 +192,7 @@ using (IServiceScope scope = app.Services.CreateScope())
 
 // ── Middleware Pipeline ──────────────────────────────────────────
 app.UseMiddleware<ErrorHandlingMiddleware>();
+app.UseRateLimiter();
 
 if (app.Environment.IsDevelopment())
 {

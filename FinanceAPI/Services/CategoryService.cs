@@ -75,6 +75,17 @@ public class CategoryService : ICategoryService
 
     public async Task ReorderAsync(int userId, ReorderCategoriesRequest request)
     {
+        HashSet<int> userCategoryIds = new HashSet<int>(
+            (await _categoryRepo.GetByUserIdAsync(userId)).Select(c => c.Id));
+
+        foreach (ReorderCategoriesRequest.CategoryOrderItem item in request.Items)
+        {
+            if (!userCategoryIds.Contains(item.Id))
+            {
+                throw new UnauthorizedAccessException($"Category {item.Id} does not belong to you.");
+            }
+        }
+
         IEnumerable<(int Id, int SortOrder)> items = request.Items.Select(i => (i.Id, i.SortOrder));
         await _categoryRepo.ReorderAsync(userId, items);
     }

@@ -46,12 +46,12 @@ public class AuthService : IAuthService
 
         if (await _userRepo.GetByUsernameAsync(request.Username) is not null)
         {
-            throw new ArgumentException("Username ist bereits vergeben.");
+            throw new ArgumentException("Username is already taken.");
         }
 
         if (await _userRepo.GetByEmailAsync(request.Email) is not null)
         {
-            throw new ArgumentException("Email ist bereits registiert.");
+            throw new ArgumentException("Email is already registered.");
         }
 
         if (!(await _userRepo.GetAllAsync()).Any())
@@ -101,16 +101,16 @@ public class AuthService : IAuthService
     public async Task<AuthResponse> LoginAsync(LoginRequest request)
     {
         User user = await _userRepo.GetByUsernameAsync(request.Username)
-                   ?? throw new KeyNotFoundException("Username/Passwort ungültig.");
+                   ?? throw new KeyNotFoundException("Invalid username or password.");
 
         if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
         {
-            throw new KeyNotFoundException("Username/Passwort ungültig.");
+            throw new KeyNotFoundException("Invalid username or password.");
         }
 
         if (!user.IsActive)
         {
-            throw new UnauthorizedAccessException("Dieses Konto wurde gesperrt.");
+            throw new UnauthorizedAccessException("This account has been deactivated.");
         }
 
         return new AuthResponse

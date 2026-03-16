@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using FinanceAPI.DTOs.Transactions;
 using FinanceAPI.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -9,7 +8,7 @@ namespace FinanceAPI.Controllers;
 [ApiController]
 [Route("api/transactions")]
 [Authorize]
-public class TransactionsController : ControllerBase
+public class TransactionsController : AuthenticatedControllerBase
 {
     private readonly ITransactionService _transactionService;
 
@@ -17,8 +16,6 @@ public class TransactionsController : ControllerBase
     {
         _transactionService = transactionService;
     }
-
-    private int UserId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<TransactionDto>>> GetAll(

@@ -13,6 +13,8 @@ public class RegisterRequest
     public string Email { get; set; } = string.Empty;
 
     [Required]
-    [MinLength(8)]
+    [RegularExpression(
+        @"^(?=.*[a-zA-Z])(?=.*\d).{8,}$",
+        ErrorMessage = "Password must be at least 8 characters and contain at least one letter and one digit.")]
     public string Password { get; set; } = string.Empty;
 }

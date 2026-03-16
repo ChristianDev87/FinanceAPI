@@ -6,5 +6,6 @@ public class CreateApiKeyRequest
 {
     [Required]
     [MinLength(1)]
+    [MaxLength(100)]
     public string Name { get; set; } = string.Empty;
 }

@@ -1,4 +1,5 @@
 using System.Data;
+using System.Text;
 using Dapper;
 using FinanceAPI.Database;
 using FinanceAPI.Interfaces.Repositories;
@@ -64,12 +65,34 @@ public class CategoryRepository : ICategoryRepository
 
     public async Task ReorderAsync(int userId, IEnumerable<(int Id, int SortOrder)> reorderItems)
     {
-        using IDbConnection conn = _connectionFactory.CreateConnection();
-        foreach ((int id, int sortOrder) in reorderItems)
+        List<(int Id, int SortOrder)> items = reorderItems.ToList();
+        if (items.Count == 0)
         {
-            await conn.ExecuteAsync(
-                "UPDATE Categories SET SortOrder = @SortOrder WHERE Id = @Id AND UserId = @UserId",
-                new { SortOrder = sortOrder, Id = id, UserId = userId });
+            return;
         }
+
+        using IDbConnection conn = _connectionFactory.CreateConnection();
+
+        DynamicParameters parameters = new DynamicParameters();
+        parameters.Add("UserId", userId);
+
+        StringBuilder caseExpr = new StringBuilder("CASE Id");
+        List<string> inParams = new List<string>();
+
+        for (int i = 0; i < items.Count; i++)
+        {
+            string idParam = $"Id{i}";
+            string sortParam = $"Sort{i}";
+            caseExpr.Append($" WHEN @{idParam} THEN @{sortParam}");
+            inParams.Add($"@{idParam}");
+            parameters.Add(idParam, items[i].Id);
+            parameters.Add(sortParam, items[i].SortOrder);
+        }
+
+        caseExpr.Append(" END");
+
+        string sql = $"UPDATE Categories SET SortOrder = {caseExpr} WHERE UserId = @UserId AND Id IN ({string.Join(", ", inParams)})";
+
+        await conn.ExecuteAsync(sql, parameters);
     }
 }

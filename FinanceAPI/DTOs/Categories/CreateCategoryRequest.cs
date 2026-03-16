@@ -8,6 +8,7 @@ public class CreateCategoryRequest
     [MinLength(1)]
     public string Name { get; set; } = string.Empty;
 
+    [RegularExpression("^#[0-9A-Fa-f]{6}$", ErrorMessage = "Color must be a valid hex color code (e.g. #1abc9c).")]
     public string Color { get; set; } = "#1abc9c";
 
     [Required]

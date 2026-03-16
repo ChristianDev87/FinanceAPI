@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using FinanceAPI.DTOs.ApiKeys;
 using FinanceAPI.DTOs.Users;
 using FinanceAPI.Interfaces.Repositories;
@@ -12,7 +11,7 @@ namespace FinanceAPI.Controllers;
 [ApiController]
 [Route("api/users")]
 [Authorize(Roles = "Admin")]
-public class UsersController : ControllerBase
+public class UsersController : AuthenticatedControllerBase
 {
     private readonly IUserService _userService;
     private readonly IUserRepository _userRepo;
@@ -38,7 +37,7 @@ public class UsersController : ControllerBase
     [HttpPut("{userId:int}")]
     public async Task<ActionResult<UserDto>> Update(int userId, [FromBody] UpdateUserRequest request)
     {
-        return Ok(await _userService.UpdateAsync(userId, request));
+        return Ok(await _userService.UpdateAsync(userId, request, allowRoleChange: true));
     }
 
     [HttpDelete("{userId:int}")]
@@ -52,10 +51,9 @@ public class UsersController : ControllerBase
     [HttpPut("{userId:int}/active")]
     public async Task<IActionResult> SetActive(int userId, [FromBody] bool isActive)
     {
-        int requestingId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-        if (userId == requestingId)
+        if (userId == UserId)
         {
-            throw new InvalidOperationException("Du kannst dein eigenes Konto nicht sperren.");
+            throw new InvalidOperationException("You cannot deactivate your own account.");
         }
 
         await _userService.SetActiveAsync(userId, isActive);
@@ -78,8 +76,7 @@ public class UsersController : ControllerBase
     [HttpPost("{userId:int}/apikeys")]
     public async Task<ActionResult<ApiKeyCreatedResponse>> CreateApiKey(int userId, [FromBody] CreateApiKeyRequest request)
     {
-        int adminId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-        ApiKeyCreatedResponse result = await _userService.CreateApiKeyAsync(userId, request.Name, createdByAdminId: adminId);
+        ApiKeyCreatedResponse result = await _userService.CreateApiKeyAsync(userId, request.Name, createdByAdminId: UserId);
         return Ok(result);
     }
 
