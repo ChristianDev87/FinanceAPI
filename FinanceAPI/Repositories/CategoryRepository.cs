@@ -18,30 +18,37 @@ public class CategoryRepository : ICategoryRepository
         _dialect = dialect;
     }
 
-    public async Task<IEnumerable<Category>> GetByUserIdAsync(int userId)
+    public async Task<IEnumerable<Category>> GetByUserIdAsync(int userId, CancellationToken cancellationToken = default)
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
         return await conn.QueryAsync<Category>(
-            "SELECT * FROM Categories WHERE UserId = @UserId ORDER BY SortOrder ASC, Id ASC",
-            new { UserId = userId });
+            new CommandDefinition(
+                "SELECT * FROM Categories WHERE UserId = @UserId ORDER BY SortOrder ASC, Id ASC",
+                new { UserId = userId },
+                cancellationToken: cancellationToken));
     }
 
-    public async Task<Category?> GetByIdAsync(int id)
+    public async Task<Category?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
         return await conn.QuerySingleOrDefaultAsync<Category>(
-            "SELECT * FROM Categories WHERE Id = @Id", new { Id = id });
+            new CommandDefinition(
+                "SELECT * FROM Categories WHERE Id = @Id",
+                new { Id = id },
+                cancellationToken: cancellationToken));
     }
 
-    public async Task<Category?> GetByUserIdAndNameAsync(int userId, string name)
+    public async Task<Category?> GetByUserIdAndNameAsync(int userId, string name, CancellationToken cancellationToken = default)
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
         return await conn.QuerySingleOrDefaultAsync<Category>(
-            $"SELECT * FROM Categories WHERE UserId = @UserId AND {_dialect.CaseInsensitiveEqual("Name", "@Name")}",
-            new { UserId = userId, Name = name });
+            new CommandDefinition(
+                $"SELECT * FROM Categories WHERE UserId = @UserId AND {_dialect.CaseInsensitiveEqual("Name", "@Name")}",
+                new { UserId = userId, Name = name },
+                cancellationToken: cancellationToken));
     }
 
-    public async Task<int> CreateAsync(Category category)
+    public async Task<int> CreateAsync(Category category, CancellationToken cancellationToken = default)
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
         return await _dialect.InsertAsync(conn,
@@ -54,29 +61,38 @@ public class CategoryRepository : ICategoryRepository
             "INSERT INTO Categories (UserId, Name, Color, Type, SortOrder) VALUES (@UserId, @Name, @Color, @Type, @SortOrder)",
             category, txn);
 
-    public async Task UpdateAsync(Category category)
+    public async Task UpdateAsync(Category category, CancellationToken cancellationToken = default)
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
         await conn.ExecuteAsync(
-            "UPDATE Categories SET Name = @Name, Color = @Color, Type = @Type, SortOrder = @SortOrder WHERE Id = @Id",
-            category);
+            new CommandDefinition(
+                "UPDATE Categories SET Name = @Name, Color = @Color, Type = @Type, SortOrder = @SortOrder WHERE Id = @Id",
+                category,
+                cancellationToken: cancellationToken));
     }
 
-    public async Task DeleteAsync(int id)
+    public async Task DeleteAsync(int id, CancellationToken cancellationToken = default)
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
-        await conn.ExecuteAsync("DELETE FROM Categories WHERE Id = @Id", new { Id = id });
+        await conn.ExecuteAsync(
+            new CommandDefinition(
+                "DELETE FROM Categories WHERE Id = @Id",
+                new { Id = id },
+                cancellationToken: cancellationToken));
     }
 
-    public async Task<bool> HasTransactionsAsync(int categoryId)
+    public async Task<bool> HasTransactionsAsync(int categoryId, CancellationToken cancellationToken = default)
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
         int count = await conn.QuerySingleAsync<int>(
-            "SELECT COUNT(*) FROM Transactions WHERE CategoryId = @CategoryId", new { CategoryId = categoryId });
+            new CommandDefinition(
+                "SELECT COUNT(*) FROM Transactions WHERE CategoryId = @CategoryId",
+                new { CategoryId = categoryId },
+                cancellationToken: cancellationToken));
         return count > 0;
     }
 
-    public async Task ReorderAsync(int userId, IEnumerable<(int Id, int SortOrder)> reorderItems)
+    public async Task ReorderAsync(int userId, IEnumerable<(int Id, int SortOrder)> reorderItems, CancellationToken cancellationToken = default)
     {
         List<(int Id, int SortOrder)> items = reorderItems.ToList();
         if (items.Count == 0)
@@ -106,6 +122,7 @@ public class CategoryRepository : ICategoryRepository
 
         string sql = $"UPDATE Categories SET SortOrder = {caseExpr} WHERE UserId = @UserId AND Id IN ({string.Join(", ", inParams)})";
 
-        await conn.ExecuteAsync(sql, parameters);
+        await conn.ExecuteAsync(
+            new CommandDefinition(sql, parameters, cancellationToken: cancellationToken));
     }
 }

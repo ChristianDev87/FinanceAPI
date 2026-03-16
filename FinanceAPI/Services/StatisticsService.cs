@@ -1,6 +1,7 @@
 using System.Data;
 using Dapper;
 using FinanceAPI.Database;
+using FinanceAPI.Domain;
 using FinanceAPI.DTOs.Statistics;
 using FinanceAPI.Interfaces.Services;
 
@@ -17,36 +18,40 @@ public class StatisticsService : IStatisticsService
         _dialect = dialect;
     }
 
-    public async Task<IEnumerable<int>> GetAvailableYearsAsync(int userId)
+    public async Task<IEnumerable<int>> GetAvailableYearsAsync(int userId, CancellationToken cancellationToken = default)
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
         return await conn.QueryAsync<int>(
-            $"""
-            SELECT DISTINCT {_dialect.Year("Date")} AS Year
-            FROM Transactions
-            WHERE UserId = @UserId
-            ORDER BY Year DESC
-            """,
-            new { UserId = userId });
+            new CommandDefinition(
+                $"""
+                SELECT DISTINCT {_dialect.Year("Date")} AS Year
+                FROM Transactions
+                WHERE UserId = @UserId
+                ORDER BY Year DESC
+                """,
+                new { UserId = userId },
+                cancellationToken: cancellationToken));
     }
 
-    public async Task<IEnumerable<MonthlyStatDto>> GetMonthlyAsync(int userId, int year)
+    public async Task<IEnumerable<MonthlyStatDto>> GetMonthlyAsync(int userId, int year, CancellationToken cancellationToken = default)
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
 
         IEnumerable<(int Month, string Type, decimal Total)> rows = await conn.QueryAsync<(int Month, string Type, decimal Total)>(
-            $"""
-            SELECT
-                {_dialect.Month("Date")} AS Month,
-                Type,
-                SUM(Amount) AS Total
-            FROM Transactions
-            WHERE UserId = @UserId
-              AND {_dialect.Year("Date")} = @Year
-            GROUP BY Month, Type
-            ORDER BY Month
-            """,
-            new { UserId = userId, Year = year });
+            new CommandDefinition(
+                $"""
+                SELECT
+                    {_dialect.Month("Date")} AS Month,
+                    Type,
+                    SUM(Amount) AS Total
+                FROM Transactions
+                WHERE UserId = @UserId
+                  AND {_dialect.Year("Date")} = @Year
+                GROUP BY Month, Type
+                ORDER BY Month
+                """,
+                new { UserId = userId, Year = year },
+                cancellationToken: cancellationToken));
 
         IEnumerable<IGrouping<int, (int Month, string Type, decimal Total)>> grouped = rows.GroupBy(r => r.Month);
         List<MonthlyStatDto> result = new List<MonthlyStatDto>();
@@ -58,8 +63,8 @@ public class StatisticsService : IStatisticsService
             {
                 Month = m,
                 Year = year,
-                TotalIncome = monthRows?.FirstOrDefault(r => r.Type == "income").Total ?? 0,
-                TotalExpense = monthRows?.FirstOrDefault(r => r.Type == "expense").Total ?? 0
+                TotalIncome = monthRows?.FirstOrDefault(r => r.Type == TransactionTypes.Income).Total ?? 0,
+                TotalExpense = monthRows?.FirstOrDefault(r => r.Type == TransactionTypes.Expense).Total ?? 0
             });
         }
 
@@ -67,7 +72,7 @@ public class StatisticsService : IStatisticsService
     }
 
     public async Task<IEnumerable<CategoryStatDto>> GetByCategoryAsync(
-        int userId, int month, int year, string? type)
+        int userId, int month, int year, string? type, CancellationToken cancellationToken = default)
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
 
@@ -101,6 +106,7 @@ public class StatisticsService : IStatisticsService
             parameters.Add("Type", type);
         }
 
-        return await conn.QueryAsync<CategoryStatDto>(sql, parameters);
+        return await conn.QueryAsync<CategoryStatDto>(
+            new CommandDefinition(sql, parameters, cancellationToken: cancellationToken));
     }
 }

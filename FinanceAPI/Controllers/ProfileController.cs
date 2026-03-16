@@ -21,17 +21,17 @@ public class ProfileController : AuthenticatedControllerBase
 
     // GET /api/profile
     [HttpGet]
-    public async Task<IActionResult> GetProfile()
+    public async Task<IActionResult> GetProfile(CancellationToken cancellationToken)
     {
-        UserDto dto = await _userService.GetByIdAsync(UserId);
+        UserDto dto = await _userService.GetByIdAsync(UserId, cancellationToken);
         return Ok(dto);
     }
 
     // PUT /api/profile
     [HttpPut]
-    public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequest request)
+    public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequest request, CancellationToken cancellationToken)
     {
-        UserDto current = await _userService.GetByIdAsync(UserId);
+        UserDto current = await _userService.GetByIdAsync(UserId, cancellationToken);
 
         UpdateUserRequest updateRequest = new UpdateUserRequest
         {
@@ -40,46 +40,46 @@ public class ProfileController : AuthenticatedControllerBase
             Role = current.Role   // role cannot be changed via profile
         };
 
-        UserDto dto = await _userService.UpdateAsync(UserId, updateRequest);
+        UserDto dto = await _userService.UpdateAsync(UserId, updateRequest, cancellationToken: cancellationToken);
         return Ok(dto);
     }
 
     // PUT /api/profile/password
     [HttpPut("password")]
-    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request, CancellationToken cancellationToken)
     {
-        await _userService.ChangePasswordAsync(UserId, request.CurrentPassword, request.NewPassword);
+        await _userService.ChangePasswordAsync(UserId, request.CurrentPassword, request.NewPassword, cancellationToken);
         return NoContent();
     }
 
     // DELETE /api/profile
     [HttpDelete]
-    public async Task<IActionResult> DeleteAccount()
+    public async Task<IActionResult> DeleteAccount(CancellationToken cancellationToken)
     {
-        await _userService.DeleteAsync(UserId);
+        await _userService.DeleteAsync(UserId, cancellationToken);
         return NoContent();
     }
 
     // GET /api/profile/apikeys
     [HttpGet("apikeys")]
-    public async Task<ActionResult<IEnumerable<ApiKeyDto>>> GetApiKeys()
+    public async Task<ActionResult<IEnumerable<ApiKeyDto>>> GetApiKeys(CancellationToken cancellationToken)
     {
-        return Ok(await _userService.GetApiKeysAsync(UserId));
+        return Ok(await _userService.GetApiKeysAsync(UserId, cancellationToken));
     }
 
     // POST /api/profile/apikeys
     [HttpPost("apikeys")]
-    public async Task<ActionResult<ApiKeyCreatedResponse>> CreateApiKey([FromBody] CreateApiKeyRequest request)
+    public async Task<ActionResult<ApiKeyCreatedResponse>> CreateApiKey([FromBody] CreateApiKeyRequest request, CancellationToken cancellationToken)
     {
-        ApiKeyCreatedResponse result = await _userService.CreateApiKeyAsync(UserId, request.Name);
+        ApiKeyCreatedResponse result = await _userService.CreateApiKeyAsync(UserId, request.Name, cancellationToken: cancellationToken);
         return CreatedAtAction(nameof(GetApiKeys), result);
     }
 
     // DELETE /api/profile/apikeys/{keyId}
     [HttpDelete("apikeys/{keyId:int}")]
-    public async Task<IActionResult> RevokeApiKey(int keyId)
+    public async Task<IActionResult> RevokeApiKey(int keyId, CancellationToken cancellationToken)
     {
-        await _userService.RevokeApiKeyAsync(UserId, keyId);
+        await _userService.RevokeApiKeyAsync(UserId, keyId, cancellationToken);
         return NoContent();
     }
 }

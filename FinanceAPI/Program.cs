@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text;
+using Dapper;
 using FinanceAPI.Database;
 using FinanceAPI.Interfaces.Repositories;
 using FinanceAPI.Interfaces.Services;
@@ -11,6 +12,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+
+SqlMapper.AddTypeHandler(new DateOnlyTypeHandler());
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -49,6 +52,25 @@ builder.Services.AddSwaggerGen(c =>
             new OpenApiSecurityScheme
             {
                 Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
+            },
+            Array.Empty<string>()
+        }
+    });
+
+    c.AddSecurityDefinition("ApiKey", new OpenApiSecurityScheme
+    {
+        Description = "API key authentication via the X-Api-Key request header.",
+        Name = "X-Api-Key",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.ApiKey
+    });
+
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "ApiKey" }
             },
             Array.Empty<string>()
         }
@@ -187,7 +209,7 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
                 IUserRepository userRepo = context.HttpContext.RequestServices
                     .GetRequiredService<IUserRepository>();
 
-                User? user = await userRepo.GetByIdAsync(userId);
+                User? user = await userRepo.GetByIdAsync(userId, context.HttpContext.RequestAborted);
                 if (user is null || !user.IsActive)
                 {
                     context.Fail("User account is disabled or does not exist.");
@@ -252,6 +274,9 @@ builder.Services.AddCors(options =>
     });
 });
 
+// ── Health checks ────────────────────────────────────────────────
+builder.Services.AddHealthChecks();
+
 // ═════════════════════════════════════════════════════════════════
 WebApplication app = builder.Build();
 
@@ -263,6 +288,21 @@ using (IServiceScope scope = app.Services.CreateScope())
 }
 
 // ── Middleware Pipeline ──────────────────────────────────────────
+
+// Attach a correlation ID to every response so clients and logs can be correlated.
+app.Use(async (context, next) =>
+{
+    context.Response.OnStarting(() =>
+    {
+        if (!context.Response.Headers.ContainsKey("X-Correlation-Id"))
+        {
+            context.Response.Headers["X-Correlation-Id"] = context.TraceIdentifier;
+        }
+        return Task.CompletedTask;
+    });
+    await next(context);
+});
+
 app.UseMiddleware<ErrorHandlingMiddleware>();
 app.UseRateLimiter();
 
@@ -283,6 +323,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHealthChecks("/health");
 
 app.Run();
 

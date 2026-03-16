@@ -7,7 +7,7 @@ public class Transaction
     public decimal Amount { get; set; }
     public string Type { get; set; } = string.Empty; // "income" | "expense"
     public int? CategoryId { get; set; }
-    public string Date { get; set; } = string.Empty; // YYYY-MM-DD
+    public DateOnly Date { get; set; }
     public string? Description { get; set; }
     public string CreatedAt { get; set; } = string.Empty;
 }

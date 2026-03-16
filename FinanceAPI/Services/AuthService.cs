@@ -4,6 +4,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using FinanceAPI.Database;
+using FinanceAPI.Domain;
 using FinanceAPI.DTOs.Auth;
 using FinanceAPI.Interfaces.Repositories;
 using FinanceAPI.Interfaces.Services;
@@ -32,12 +33,12 @@ public class AuthService : IAuthService
         _connectionFactory = connectionFactory;
     }
 
-    public async Task<AuthResponse> RegisterAsync(RegisterRequest request)
+    public async Task<AuthResponse> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken = default)
     {
-        await _registerLock.WaitAsync();
+        await _registerLock.WaitAsync(cancellationToken);
         try
         {
-            return await RegisterInternalAsync(request);
+            return await RegisterInternalAsync(request, cancellationToken);
         }
         finally
         {
@@ -45,23 +46,23 @@ public class AuthService : IAuthService
         }
     }
 
-    private async Task<AuthResponse> RegisterInternalAsync(RegisterRequest request)
+    private async Task<AuthResponse> RegisterInternalAsync(RegisterRequest request, CancellationToken cancellationToken)
     {
-        string role = "User";
+        string role = UserRoles.User;
 
-        if (await _userRepo.GetByUsernameAsync(request.Username) is not null)
+        if (await _userRepo.GetByUsernameAsync(request.Username, cancellationToken) is not null)
         {
             throw new ArgumentException("Username is already taken.");
         }
 
-        if (await _userRepo.GetByEmailAsync(request.Email) is not null)
+        if (await _userRepo.GetByEmailAsync(request.Email, cancellationToken) is not null)
         {
             throw new ArgumentException("Email is already registered.");
         }
 
-        if (!await _userRepo.AnyAsync())
+        if (!await _userRepo.AnyAsync(cancellationToken))
         {
-            role = "Admin";
+            role = UserRoles.Admin;
         }
 
         User user = new User
@@ -119,9 +120,9 @@ public class AuthService : IAuthService
         };
     }
 
-    public async Task<AuthResponse> LoginAsync(LoginRequest request)
+    public async Task<AuthResponse> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
     {
-        User user = await _userRepo.GetByUsernameAsync(request.Username)
+        User user = await _userRepo.GetByUsernameAsync(request.Username, cancellationToken)
                    ?? throw new UnauthorizedAccessException("Invalid username or password.");
 
         if (!user.IsActive)

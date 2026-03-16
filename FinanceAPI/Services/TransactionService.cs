@@ -1,3 +1,4 @@
+using System.Globalization;
 using FinanceAPI.DTOs.Transactions;
 using FinanceAPI.Interfaces.Repositories;
 using FinanceAPI.Interfaces.Services;
@@ -17,17 +18,17 @@ public class TransactionService : ITransactionService
     }
 
     public async Task<IEnumerable<TransactionDto>> GetAllAsync(
-        int userId, int? month, int? year, int? categoryId, string? type)
+        int userId, int? month, int? year, int? categoryId, string? type, CancellationToken cancellationToken = default)
     {
-        IEnumerable<Transaction> transactions = await _transactionRepo.GetByUserIdAsync(userId, month, year, categoryId, type);
-        Dictionary<int, Category> categories = (await _categoryRepo.GetByUserIdAsync(userId)).ToDictionary(c => c.Id);
+        IEnumerable<Transaction> transactions = await _transactionRepo.GetByUserIdAsync(userId, month, year, categoryId, type, cancellationToken);
+        Dictionary<int, Category> categories = (await _categoryRepo.GetByUserIdAsync(userId, cancellationToken)).ToDictionary(c => c.Id);
 
         return transactions.Select(t => MapToDto(t, categories));
     }
 
-    public async Task<TransactionDto> GetByIdAsync(int userId, int transactionId)
+    public async Task<TransactionDto> GetByIdAsync(int userId, int transactionId, CancellationToken cancellationToken = default)
     {
-        Transaction transaction = await _transactionRepo.GetByIdAsync(transactionId)
+        Transaction transaction = await _transactionRepo.GetByIdAsync(transactionId, cancellationToken)
                           ?? throw new KeyNotFoundException($"Transaction {transactionId} not found.");
 
         if (transaction.UserId != userId)
@@ -36,18 +37,18 @@ public class TransactionService : ITransactionService
         }
 
         Category? category = transaction.CategoryId.HasValue
-            ? await _categoryRepo.GetByIdAsync(transaction.CategoryId.Value)
+            ? await _categoryRepo.GetByIdAsync(transaction.CategoryId.Value, cancellationToken)
             : null;
 
         return MapToDto(transaction, category);
     }
 
-    public async Task<TransactionDto> CreateAsync(int userId, CreateTransactionRequest request)
+    public async Task<TransactionDto> CreateAsync(int userId, CreateTransactionRequest request, CancellationToken cancellationToken = default)
     {
         Category? category = null;
         if (request.CategoryId.HasValue)
         {
-            category = await _categoryRepo.GetByIdAsync(request.CategoryId.Value)
+            category = await _categoryRepo.GetByIdAsync(request.CategoryId.Value, cancellationToken)
                       ?? throw new KeyNotFoundException($"Category {request.CategoryId} not found.");
             if (category.UserId != userId)
             {
@@ -65,19 +66,19 @@ public class TransactionService : ITransactionService
             Amount = request.Amount,
             Type = request.Type,
             CategoryId = request.CategoryId,
-            Date = request.Date,
+            Date = DateOnly.ParseExact(request.Date, "yyyy-MM-dd", CultureInfo.InvariantCulture),
             Description = request.Description
         };
 
-        int id = await _transactionRepo.CreateAsync(transaction);
+        int id = await _transactionRepo.CreateAsync(transaction, cancellationToken);
         transaction.Id = id;
 
         return MapToDto(transaction, category);
     }
 
-    public async Task<TransactionDto> UpdateAsync(int userId, int transactionId, UpdateTransactionRequest request)
+    public async Task<TransactionDto> UpdateAsync(int userId, int transactionId, UpdateTransactionRequest request, CancellationToken cancellationToken = default)
     {
-        Transaction transaction = await _transactionRepo.GetByIdAsync(transactionId)
+        Transaction transaction = await _transactionRepo.GetByIdAsync(transactionId, cancellationToken)
                           ?? throw new KeyNotFoundException($"Transaction {transactionId} not found.");
 
         if (transaction.UserId != userId)
@@ -88,7 +89,7 @@ public class TransactionService : ITransactionService
         Category? category = null;
         if (request.CategoryId.HasValue)
         {
-            category = await _categoryRepo.GetByIdAsync(request.CategoryId.Value)
+            category = await _categoryRepo.GetByIdAsync(request.CategoryId.Value, cancellationToken)
                       ?? throw new KeyNotFoundException($"Category {request.CategoryId} not found.");
             if (category.UserId != userId)
             {
@@ -103,17 +104,17 @@ public class TransactionService : ITransactionService
         transaction.Amount = request.Amount;
         transaction.Type = request.Type;
         transaction.CategoryId = request.CategoryId;
-        transaction.Date = request.Date;
+        transaction.Date = DateOnly.ParseExact(request.Date, "yyyy-MM-dd", CultureInfo.InvariantCulture);
         transaction.Description = request.Description;
 
-        await _transactionRepo.UpdateAsync(transaction);
+        await _transactionRepo.UpdateAsync(transaction, cancellationToken);
 
         return MapToDto(transaction, category);
     }
 
-    public async Task DeleteAsync(int userId, int transactionId)
+    public async Task DeleteAsync(int userId, int transactionId, CancellationToken cancellationToken = default)
     {
-        Transaction transaction = await _transactionRepo.GetByIdAsync(transactionId)
+        Transaction transaction = await _transactionRepo.GetByIdAsync(transactionId, cancellationToken)
                           ?? throw new KeyNotFoundException($"Transaction {transactionId} not found.");
 
         if (transaction.UserId != userId)
@@ -121,7 +122,7 @@ public class TransactionService : ITransactionService
             throw new UnauthorizedAccessException("Transaction does not belong to you.");
         }
 
-        await _transactionRepo.DeleteAsync(transactionId);
+        await _transactionRepo.DeleteAsync(transactionId, cancellationToken);
     }
 
     private static TransactionDto MapToDto(Transaction t, Category? category) => new()
@@ -131,7 +132,7 @@ public class TransactionService : ITransactionService
         Type = t.Type,
         CategoryId = t.CategoryId,
         CategoryName = category?.Name,
-        Date = t.Date,
+        Date = t.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
         Description = t.Description,
         CreatedAt = t.CreatedAt
     };
@@ -144,7 +145,7 @@ public class TransactionService : ITransactionService
         CategoryId = t.CategoryId,
         CategoryName = t.CategoryId.HasValue && categories.TryGetValue(t.CategoryId.Value, out Category? cat)
             ? cat.Name : null,
-        Date = t.Date,
+        Date = t.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
         Description = t.Description,
         CreatedAt = t.CreatedAt
     };

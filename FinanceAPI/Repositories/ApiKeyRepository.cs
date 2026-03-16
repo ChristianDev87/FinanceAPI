@@ -17,29 +17,37 @@ public class ApiKeyRepository : IApiKeyRepository
         _dialect = dialect;
     }
 
-    public async Task<ApiKey?> GetByHashAsync(string keyHash)
+    public async Task<ApiKey?> GetByHashAsync(string keyHash, CancellationToken cancellationToken = default)
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
         return await conn.QuerySingleOrDefaultAsync<ApiKey>(
-            "SELECT * FROM ApiKeys WHERE KeyHash = @KeyHash AND IsActive = @IsActive",
-            new { KeyHash = keyHash, IsActive = true });
+            new CommandDefinition(
+                "SELECT * FROM ApiKeys WHERE KeyHash = @KeyHash AND IsActive = @IsActive",
+                new { KeyHash = keyHash, IsActive = true },
+                cancellationToken: cancellationToken));
     }
 
-    public async Task<IEnumerable<ApiKey>> GetByUserIdAsync(int userId)
+    public async Task<IEnumerable<ApiKey>> GetByUserIdAsync(int userId, CancellationToken cancellationToken = default)
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
         return await conn.QueryAsync<ApiKey>(
-            "SELECT * FROM ApiKeys WHERE UserId = @UserId ORDER BY CreatedAt DESC", new { UserId = userId });
+            new CommandDefinition(
+                "SELECT * FROM ApiKeys WHERE UserId = @UserId ORDER BY CreatedAt DESC",
+                new { UserId = userId },
+                cancellationToken: cancellationToken));
     }
 
-    public async Task<ApiKey?> GetByIdAsync(int id)
+    public async Task<ApiKey?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
         return await conn.QuerySingleOrDefaultAsync<ApiKey>(
-            "SELECT * FROM ApiKeys WHERE Id = @Id", new { Id = id });
+            new CommandDefinition(
+                "SELECT * FROM ApiKeys WHERE Id = @Id",
+                new { Id = id },
+                cancellationToken: cancellationToken));
     }
 
-    public async Task<int> CreateAsync(ApiKey apiKey)
+    public async Task<int> CreateAsync(ApiKey apiKey, CancellationToken cancellationToken = default)
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
         return await _dialect.InsertAsync(conn,
@@ -52,20 +60,24 @@ public class ApiKeyRepository : IApiKeyRepository
             "INSERT INTO ApiKeys (UserId, KeyHash, Name, IsActive, CreatedByAdminId) VALUES (@UserId, @KeyHash, @Name, @IsActive, @CreatedByAdminId)",
             apiKey, txn);
 
-    public async Task DeactivateAsync(int id)
+    public async Task DeactivateAsync(int id, CancellationToken cancellationToken = default)
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
         await conn.ExecuteAsync(
-            "UPDATE ApiKeys SET IsActive = @IsActive WHERE Id = @Id",
-            new { Id = id, IsActive = false });
+            new CommandDefinition(
+                "UPDATE ApiKeys SET IsActive = @IsActive WHERE Id = @Id",
+                new { Id = id, IsActive = false },
+                cancellationToken: cancellationToken));
     }
 
-    public async Task DeactivateAllForUserAsync(int userId)
+    public async Task DeactivateAllForUserAsync(int userId, CancellationToken cancellationToken = default)
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
         await conn.ExecuteAsync(
-            "UPDATE ApiKeys SET IsActive = @IsActive WHERE UserId = @UserId AND IsActive = @CurrentIsActive",
-            new { UserId = userId, IsActive = false, CurrentIsActive = true });
+            new CommandDefinition(
+                "UPDATE ApiKeys SET IsActive = @IsActive WHERE UserId = @UserId AND IsActive = @CurrentIsActive",
+                new { UserId = userId, IsActive = false, CurrentIsActive = true },
+                cancellationToken: cancellationToken));
     }
 
     public Task DeactivateAllForUserAsync(int userId, IDbConnection conn, IDbTransaction txn)

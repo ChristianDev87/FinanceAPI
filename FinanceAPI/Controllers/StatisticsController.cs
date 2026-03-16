@@ -19,28 +19,30 @@ public class StatisticsController : AuthenticatedControllerBase
     }
 
     [HttpGet("years")]
-    public async Task<ActionResult<IEnumerable<int>>> GetAvailableYears()
+    public async Task<ActionResult<IEnumerable<int>>> GetAvailableYears(CancellationToken cancellationToken)
     {
-        return Ok(await _statisticsService.GetAvailableYearsAsync(UserId));
+        return Ok(await _statisticsService.GetAvailableYearsAsync(UserId, cancellationToken));
     }
 
     [HttpGet("monthly")]
     public async Task<ActionResult<IEnumerable<MonthlyStatDto>>> GetMonthly(
-        [FromQuery][Range(1900, 2100)] int year = 0)
+        [FromQuery][Range(1900, 2100)] int year,
+        CancellationToken cancellationToken)
     {
         if (year == 0)
         {
             year = DateTime.UtcNow.Year;
         }
 
-        return Ok(await _statisticsService.GetMonthlyAsync(UserId, year));
+        return Ok(await _statisticsService.GetMonthlyAsync(UserId, year, cancellationToken));
     }
 
     [HttpGet("categories")]
     public async Task<ActionResult<IEnumerable<CategoryStatDto>>> GetByCategory(
-        [FromQuery][Range(1, 12)] int month = 0,
-        [FromQuery][Range(1900, 2100)] int year = 0,
-        [FromQuery][RegularExpression("^(income|expense)$", ErrorMessage = "type must be 'income' or 'expense'.")] string? type = null)
+        [FromQuery][Range(1, 12)] int month,
+        [FromQuery][Range(1900, 2100)] int year,
+        [FromQuery][RegularExpression("^(income|expense)$", ErrorMessage = "type must be 'income' or 'expense'.")] string? type,
+        CancellationToken cancellationToken)
     {
         if (month == 0)
         {
@@ -52,6 +54,6 @@ public class StatisticsController : AuthenticatedControllerBase
             year = DateTime.UtcNow.Year;
         }
 
-        return Ok(await _statisticsService.GetByCategoryAsync(UserId, month, year, type));
+        return Ok(await _statisticsService.GetByCategoryAsync(UserId, month, year, type, cancellationToken));
     }
 }

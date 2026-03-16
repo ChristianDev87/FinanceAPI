@@ -17,15 +17,18 @@ public class TransactionRepository : ITransactionRepository
         _dialect = dialect;
     }
 
-    public async Task<Transaction?> GetByIdAsync(int id)
+    public async Task<Transaction?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
         return await conn.QuerySingleOrDefaultAsync<Transaction>(
-            "SELECT * FROM Transactions WHERE Id = @Id", new { Id = id });
+            new CommandDefinition(
+                "SELECT * FROM Transactions WHERE Id = @Id",
+                new { Id = id },
+                cancellationToken: cancellationToken));
     }
 
     public async Task<IEnumerable<Transaction>> GetByUserIdAsync(
-        int userId, int? month, int? year, int? categoryId, string? type)
+        int userId, int? month, int? year, int? categoryId, string? type, CancellationToken cancellationToken = default)
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
 
@@ -55,10 +58,11 @@ public class TransactionRepository : ITransactionRepository
         }
 
         sql += " ORDER BY Date DESC, Id DESC";
-        return await conn.QueryAsync<Transaction>(sql, parameters);
+        return await conn.QueryAsync<Transaction>(
+            new CommandDefinition(sql, parameters, cancellationToken: cancellationToken));
     }
 
-    public async Task<int> CreateAsync(Transaction transaction)
+    public async Task<int> CreateAsync(Transaction transaction, CancellationToken cancellationToken = default)
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
         return await _dialect.InsertAsync(conn,
@@ -66,21 +70,28 @@ public class TransactionRepository : ITransactionRepository
             transaction);
     }
 
-    public async Task UpdateAsync(Transaction transaction)
+    public async Task UpdateAsync(Transaction transaction, CancellationToken cancellationToken = default)
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
         await conn.ExecuteAsync(
-            """
-            UPDATE Transactions
-            SET Amount = @Amount, Type = @Type, CategoryId = @CategoryId,
-                Date = @Date, Description = @Description
-            WHERE Id = @Id
-            """, transaction);
+            new CommandDefinition(
+                """
+                UPDATE Transactions
+                SET Amount = @Amount, Type = @Type, CategoryId = @CategoryId,
+                    Date = @Date, Description = @Description
+                WHERE Id = @Id
+                """,
+                transaction,
+                cancellationToken: cancellationToken));
     }
 
-    public async Task DeleteAsync(int id)
+    public async Task DeleteAsync(int id, CancellationToken cancellationToken = default)
     {
         using IDbConnection conn = _connectionFactory.CreateConnection();
-        await conn.ExecuteAsync("DELETE FROM Transactions WHERE Id = @Id", new { Id = id });
+        await conn.ExecuteAsync(
+            new CommandDefinition(
+                "DELETE FROM Transactions WHERE Id = @Id",
+                new { Id = id },
+                cancellationToken: cancellationToken));
     }
 }
