@@ -226,18 +226,11 @@ public class UserService : IUserService
                 conn.Open();
             }
 
-            using IDbTransaction txn = conn.BeginTransaction();
-            try
+            newKeyId = await DbTransactionHelper.ExecuteInSerializableTransactionAsync(conn, async txn =>
             {
                 await _apiKeyRepo.DeactivateAllForUserAsync(userId, conn, txn);
-                newKeyId = await _apiKeyRepo.CreateAsync(apiKey, conn, txn);
-                txn.Commit();
-            }
-            catch
-            {
-                txn.Rollback();
-                throw;
-            }
+                return await _apiKeyRepo.CreateAsync(apiKey, conn, txn);
+            }, cancellationToken);
         }
 
         ApiKey created = await _apiKeyRepo.GetByIdAsync(newKeyId, cancellationToken)

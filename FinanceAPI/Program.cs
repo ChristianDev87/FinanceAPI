@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text;
+using System.Threading.RateLimiting;
 using Dapper;
 using FinanceAPI.Database;
 using FinanceAPI.Interfaces.Repositories;
@@ -216,10 +217,20 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
                     return;
                 }
 
+                ClaimsPrincipal currentPrincipal = context.Principal!;
+
+                // Reject tokens that were issued before a password change.
+                string? pwvStr = currentPrincipal.FindFirstValue("pwv");
+                int tokenPwv = int.TryParse(pwvStr, out int parsedPwv) ? parsedPwv : 0;
+                if (tokenPwv != user.PasswordVersion)
+                {
+                    context.Fail("Token has been invalidated due to a password change.");
+                    return;
+                }
+
                 // If the role stored in the token no longer matches the DB, rebuild the
                 // ClaimsPrincipal so that role changes take effect immediately without
                 // requiring a new login.
-                ClaimsPrincipal currentPrincipal = context.Principal!;
                 string? tokenRole = currentPrincipal.FindFirstValue(ClaimTypes.Role);
                 if (!string.Equals(tokenRole, user.RoleName, StringComparison.Ordinal))
                 {
@@ -239,14 +250,19 @@ builder.Services.AddAuthorization();
 // ── Rate Limiting ────────────────────────────────────────────────
 builder.Services.AddRateLimiter(options =>
 {
-    options.AddFixedWindowLimiter("auth", config =>
-    {
-        // Disable rate limiting in the test environment to prevent concurrent
-        // integration tests from hitting the 429 limit.
-        config.PermitLimit = builder.Environment.IsEnvironment("Testing") ? int.MaxValue : 10;
-        config.Window = TimeSpan.FromMinutes(1);
-        config.QueueLimit = 0;
-    });
+    // Partition by client IP so one client cannot exhaust the limit for others.
+    bool isTesting = builder.Environment.IsEnvironment("Testing");
+    options.AddPolicy("auth", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                // Disable rate limiting in the test environment to prevent concurrent
+                // integration tests from hitting the 429 limit.
+                PermitLimit = isTesting ? int.MaxValue : 10,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 });
 

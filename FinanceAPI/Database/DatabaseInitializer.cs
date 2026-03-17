@@ -42,7 +42,14 @@ public class DatabaseInitializer
                 await connection.ExecuteAsync("SELECT pg_advisory_lock(987654321)");
                 break;
             case "mysql":
-                await connection.ExecuteAsync("SELECT GET_LOCK('financeapi_schema_init', 30)");
+                int? lockResult = await connection.ExecuteScalarAsync<int?>(
+                    "SELECT GET_LOCK('financeapi_schema_init', 30)");
+                if (lockResult != 1)
+                {
+                    throw new InvalidOperationException(
+                        "Failed to acquire MySQL advisory lock for schema migration. " +
+                        "Another instance may be holding the lock or an error occurred.");
+                }
                 break;
         }
 
