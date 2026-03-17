@@ -251,16 +251,21 @@ builder.Services.AddAuthorization();
 builder.Services.AddRateLimiter(options =>
 {
     // Partition by client IP so one client cannot exhaust the limit for others.
-    bool isTesting = builder.Environment.IsEnvironment("Testing");
+    // Limits are read from RateLimitSettings in appsettings.json to allow
+    // environment-specific tuning without a code change or redeploy.
+    IConfigurationSection rl = builder.Configuration.GetSection("RateLimitSettings");
+    int permitLimit = builder.Environment.IsEnvironment("Testing")
+        ? int.MaxValue  // disabled in tests so parallel integration tests never hit 429
+        : rl.GetValue("AuthPermitLimit", 10);
+    int windowMinutes = rl.GetValue("AuthWindowMinutes", 1);
+
     options.AddPolicy("auth", httpContext =>
         RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                // Disable rate limiting in the test environment to prevent concurrent
-                // integration tests from hitting the 429 limit.
-                PermitLimit = isTesting ? int.MaxValue : 10,
-                Window = TimeSpan.FromMinutes(1),
+                PermitLimit = permitLimit,
+                Window = TimeSpan.FromMinutes(windowMinutes),
                 QueueLimit = 0
             }));
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;

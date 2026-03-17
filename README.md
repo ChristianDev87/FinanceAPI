@@ -72,6 +72,8 @@ https://localhost:7185/swagger
 | `JwtSettings.Issuer` | JWT issuer claim |
 | `JwtSettings.Audience` | JWT audience claim |
 | `JwtSettings.ExpirationHours` | Token lifetime in hours (default `24`) |
+| `RateLimitSettings.AuthPermitLimit` | Max auth requests per IP per window (default `10`) |
+| `RateLimitSettings.AuthWindowMinutes` | Rate-limit window in minutes (default `1`) |
 | `CorsSettings.AllowedOrigins` | Allowed frontend origins in production |
 | `DefaultCategories` | Category list auto-assigned to every new user on registration |
 | `SwaggerSettings.Enabled` | Set to `true` to enable Swagger UI in non-Development environments |
