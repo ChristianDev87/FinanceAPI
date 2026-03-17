@@ -77,7 +77,7 @@ https://localhost:7185/swagger
 | `RateLimitSettings.AuthWindowMinutes` | Rate-limit window in minutes (default `1`) |
 | `CorsSettings.AllowedOrigins` | Allowed frontend origins in production |
 | `DefaultCategories` | Category list auto-assigned to every new user on registration |
-| `SwaggerSettings.Enabled` | Set to `true` to enable Swagger UI in non-Development environments |
+| `SwaggerSettings.Enabled` | Set to `true` to enable Swagger UI in non-Development environments (default: `false`) |
 
 > In **Development** mode CORS allows any origin. In **Production** only the origins listed in `CorsSettings.AllowedOrigins` are allowed.
 
@@ -297,6 +297,7 @@ Swagger is enabled automatically in the `Development` environment. In other envi
 - PostgreSQL and MySQL support concurrent multi-instance deployments safely. Admin invariants are enforced with Serializable transactions and automatic retry.
 - SQLite is suitable for single-instance or low-concurrency deployments only. It does not support concurrent writes from multiple processes.
 - The auth rate limiter is partitioned by client IP and is process-local — each application instance maintains its own counters. The limit is configurable via `RateLimitSettings:AuthPermitLimit` and `AuthWindowMinutes` (default: 10 requests/minute). For multi-instance deployments, use a shared store (Redis) or a gateway-level rate limiter instead.
+- **Reverse proxy / load balancer:** When the API runs behind a reverse proxy, `RemoteIpAddress` reflects the proxy's IP, not the real client IP. Add `UseForwardedHeaders` middleware and configure `X-Forwarded-For` trust on the proxy to ensure per-client IP partitioning works correctly in that scenario.
 
 ## License
 
