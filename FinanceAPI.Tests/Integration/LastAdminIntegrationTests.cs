@@ -222,4 +222,55 @@ public class LastAdminIntegrationTests : IClassFixture<FinanceApiFactory>
             await ReactivateAdminsAsync(deactivatedAdminIds);
         }
     }
+
+    [Fact]
+    public async Task SetActive_EmptyBody_Returns400()
+    {
+        (HttpClient? client, List<int>? deactivatedAdminIds) = await SetupSoleAdminAsync("p2_setactive_empty");
+        try
+        {
+            HttpResponseMessage profileResp = await client.GetAsync("/api/profile");
+            UserDto? profile = await profileResp.Content.ReadFromJsonAsync<UserDto>();
+
+            HttpResponseMessage response = await client.PutAsJsonAsync(
+                $"/api/users/{profile!.Id}/active",
+                new { });
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+        finally
+        {
+            await ReactivateAdminsAsync(deactivatedAdminIds);
+        }
+    }
+
+    [Fact]
+    public async Task SetActive_ExplicitFalse_Returns204()
+    {
+        (HttpClient? client, List<int>? deactivatedAdminIds) = await SetupSoleAdminAsync("p2_setactive_ok");
+        try
+        {
+            HttpClient otherClient = _factory.CreateClient();
+            await otherClient.PostAsJsonAsync("/api/auth/register", new
+            {
+                username = "p2_setactive_target",
+                email = "p2_setactive_target@integration-test.com",
+                password = "Password123!"
+            });
+
+            using IServiceScope scope = _factory.Services.CreateScope();
+            IUserRepository userRepo = scope.ServiceProvider.GetRequiredService<IUserRepository>();
+            User? target = await userRepo.GetByUsernameAsync("p2_setactive_target");
+
+            HttpResponseMessage response = await client.PutAsJsonAsync(
+                $"/api/users/{target!.Id}/active",
+                new { isActive = false });
+
+            Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        }
+        finally
+        {
+            await ReactivateAdminsAsync(deactivatedAdminIds);
+        }
+    }
 }

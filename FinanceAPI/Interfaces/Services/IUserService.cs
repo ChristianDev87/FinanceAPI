@@ -8,6 +8,7 @@ public interface IUserService
     Task<IEnumerable<UserDto>> GetAllAsync(CancellationToken cancellationToken = default);
     Task<UserDto> GetByIdAsync(int id, CancellationToken cancellationToken = default);
     Task<UserDto> UpdateAsync(int id, UpdateUserRequest request, bool allowRoleChange = false, CancellationToken cancellationToken = default);
+    Task<UserDto> UpdateProfileAsync(int userId, string username, string email, CancellationToken cancellationToken = default);
     Task DeleteAsync(int id, CancellationToken cancellationToken = default);
     Task SetActiveAsync(int id, bool isActive, CancellationToken cancellationToken = default);
     Task<ApiKeyCreatedResponse> CreateApiKeyAsync(int userId, string keyName, int? createdByAdminId = null, CancellationToken cancellationToken = default);

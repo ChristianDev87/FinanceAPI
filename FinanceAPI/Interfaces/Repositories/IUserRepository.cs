@@ -19,11 +19,13 @@ public interface IUserRepository
     Task<int> CountActiveAdminsAsync(CancellationToken cancellationToken = default);
 
     // Transactional overloads — used inside Serializable transactions for atomic admin-invariant checks
+    Task<User?> GetByIdAsync(int id, IDbConnection conn, IDbTransaction txn);
     Task<User?> GetByUsernameAsync(string username, IDbConnection conn, IDbTransaction txn);
     Task<User?> GetByEmailAsync(string email, IDbConnection conn, IDbTransaction txn);
     Task<bool> AnyAsync(IDbConnection conn, IDbTransaction txn);
     Task<int> CountActiveAdminsAsync(IDbConnection conn, IDbTransaction txn);
     Task UpdateAsync(User user, IDbConnection conn, IDbTransaction txn);
+    Task UpdateUsernameEmailAsync(int id, string username, string email, CancellationToken cancellationToken = default);
     Task DeleteAsync(int id, IDbConnection conn, IDbTransaction txn);
     Task SetActiveAsync(int id, bool isActive, IDbConnection conn, IDbTransaction txn);
 }
