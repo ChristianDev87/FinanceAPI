@@ -19,13 +19,15 @@ public class AuthService : IAuthService
     private readonly ICategoryRepository _categoryRepo;
     private readonly IConfiguration _config;
     private readonly IDbConnectionFactory _connectionFactory;
+    private readonly ILogger<AuthService> _logger;
 
-    public AuthService(IUserRepository userRepo, ICategoryRepository categoryRepo, IConfiguration config, IDbConnectionFactory connectionFactory)
+    public AuthService(IUserRepository userRepo, ICategoryRepository categoryRepo, IConfiguration config, IDbConnectionFactory connectionFactory, ILogger<AuthService> logger)
     {
         _userRepo = userRepo;
         _categoryRepo = categoryRepo;
         _config = config;
         _connectionFactory = connectionFactory;
+        _logger = logger;
     }
 
     public async Task<AuthResponse> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken = default)
@@ -110,18 +112,26 @@ public class AuthService : IAuthService
 
     public async Task<AuthResponse> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
     {
-        User user = await _userRepo.GetByUsernameAsync(request.Username, cancellationToken)
-                   ?? throw new UnauthorizedAccessException("Invalid username or password.");
+        User? user = await _userRepo.GetByUsernameAsync(request.Username, cancellationToken);
+        if (user is null)
+        {
+            _logger.LogWarning("Failed login attempt: unknown username '{Username}'.", request.Username);
+            throw new UnauthorizedAccessException("Invalid username or password.");
+        }
 
         if (!user.IsActive)
         {
+            _logger.LogWarning("Failed login attempt: user {UserId} ({Username}) is deactivated.", user.Id, user.Username);
             throw new UnauthorizedAccessException("This account has been deactivated.");
         }
 
         if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
         {
+            _logger.LogWarning("Failed login attempt: invalid password for user {UserId} ({Username}).", user.Id, user.Username);
             throw new UnauthorizedAccessException("Invalid username or password.");
         }
+
+        _logger.LogInformation("User {UserId} ({Username}) logged in successfully.", user.Id, user.Username);
 
         return new AuthResponse
         {

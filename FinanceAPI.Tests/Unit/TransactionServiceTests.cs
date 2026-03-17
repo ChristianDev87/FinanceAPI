@@ -1,4 +1,5 @@
 using FinanceAPI.DTOs.Transactions;
+using FinanceAPI.Exceptions;
 using FinanceAPI.Interfaces.Repositories;
 using FinanceAPI.Models;
 using FinanceAPI.Services;
@@ -80,19 +81,19 @@ public class TransactionServiceTests
     }
 
     [Fact]
-    public async Task GetByIdAsync_NotFound_ThrowsKeyNotFoundException()
+    public async Task GetByIdAsync_NotFound_ThrowsNotFoundException()
     {
         _txRepo.Setup(r => r.GetByIdAsync(99)).ReturnsAsync((Transaction?)null);
 
-        await Assert.ThrowsAsync<KeyNotFoundException>(() => _sut.GetByIdAsync(1, 99));
+        await Assert.ThrowsAsync<NotFoundException>(() => _sut.GetByIdAsync(1, 99));
     }
 
     [Fact]
-    public async Task GetByIdAsync_OtherUsersTransaction_ThrowsUnauthorizedAccessException()
+    public async Task GetByIdAsync_OtherUsersTransaction_ThrowsForbiddenException()
     {
         _txRepo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(MakeTx(1, userId: 99));
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _sut.GetByIdAsync(1, 1));
+        await Assert.ThrowsAsync<ForbiddenException>(() => _sut.GetByIdAsync(1, 1));
     }
 
     // ── Create ────────────────────────────────────────────────────
@@ -135,11 +136,11 @@ public class TransactionServiceTests
     }
 
     [Fact]
-    public async Task CreateAsync_CategoryNotFound_ThrowsKeyNotFoundException()
+    public async Task CreateAsync_CategoryNotFound_ThrowsNotFoundException()
     {
         _catRepo.Setup(r => r.GetByIdAsync(99)).ReturnsAsync((Category?)null);
 
-        await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+        await Assert.ThrowsAsync<NotFoundException>(() =>
             _sut.CreateAsync(1, new CreateTransactionRequest
             {
                 Amount = 10m,
@@ -150,11 +151,11 @@ public class TransactionServiceTests
     }
 
     [Fact]
-    public async Task CreateAsync_OtherUsersCategory_ThrowsUnauthorizedAccessException()
+    public async Task CreateAsync_OtherUsersCategory_ThrowsForbiddenException()
     {
         _catRepo.Setup(r => r.GetByIdAsync(3)).ReturnsAsync(MakeCat(3, userId: 99));
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+        await Assert.ThrowsAsync<ForbiddenException>(() =>
             _sut.CreateAsync(1, new CreateTransactionRequest
             {
                 Amount = 10m,
@@ -216,11 +217,11 @@ public class TransactionServiceTests
     }
 
     [Fact]
-    public async Task UpdateAsync_NotFound_ThrowsKeyNotFoundException()
+    public async Task UpdateAsync_NotFound_ThrowsNotFoundException()
     {
         _txRepo.Setup(r => r.GetByIdAsync(99)).ReturnsAsync((Transaction?)null);
 
-        await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+        await Assert.ThrowsAsync<NotFoundException>(() =>
             _sut.UpdateAsync(1, 99, new UpdateTransactionRequest
             {
                 Amount = 10m,
@@ -230,11 +231,11 @@ public class TransactionServiceTests
     }
 
     [Fact]
-    public async Task UpdateAsync_OtherUsersTransaction_ThrowsUnauthorizedAccessException()
+    public async Task UpdateAsync_OtherUsersTransaction_ThrowsForbiddenException()
     {
         _txRepo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(MakeTx(1, userId: 99));
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+        await Assert.ThrowsAsync<ForbiddenException>(() =>
             _sut.UpdateAsync(1, 1, new UpdateTransactionRequest
             {
                 Amount = 10m,
@@ -256,18 +257,18 @@ public class TransactionServiceTests
     }
 
     [Fact]
-    public async Task DeleteAsync_NotFound_ThrowsKeyNotFoundException()
+    public async Task DeleteAsync_NotFound_ThrowsNotFoundException()
     {
         _txRepo.Setup(r => r.GetByIdAsync(99)).ReturnsAsync((Transaction?)null);
 
-        await Assert.ThrowsAsync<KeyNotFoundException>(() => _sut.DeleteAsync(1, 99));
+        await Assert.ThrowsAsync<NotFoundException>(() => _sut.DeleteAsync(1, 99));
     }
 
     [Fact]
-    public async Task DeleteAsync_OtherUsersTransaction_ThrowsUnauthorizedAccessException()
+    public async Task DeleteAsync_OtherUsersTransaction_ThrowsForbiddenException()
     {
         _txRepo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(MakeTx(1, userId: 99));
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _sut.DeleteAsync(1, 1));
+        await Assert.ThrowsAsync<ForbiddenException>(() => _sut.DeleteAsync(1, 1));
     }
 }

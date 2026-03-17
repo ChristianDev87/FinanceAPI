@@ -2,9 +2,11 @@ using System.Data;
 using FinanceAPI.Database;
 using FinanceAPI.DTOs.ApiKeys;
 using FinanceAPI.DTOs.Users;
+using FinanceAPI.Exceptions;
 using FinanceAPI.Interfaces.Repositories;
 using FinanceAPI.Models;
 using FinanceAPI.Services;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
 namespace FinanceAPI.Tests.Unit;
@@ -25,7 +27,7 @@ public class UserServiceTests
         conn.SetupGet(c => c.State).Returns(ConnectionState.Open);
         _connFactory.Setup(f => f.CreateConnection()).Returns(conn.Object);
 
-        _sut = new UserService(_userRepo.Object, _apiKeyRepo.Object, _connFactory.Object);
+        _sut = new UserService(_userRepo.Object, _apiKeyRepo.Object, _connFactory.Object, NullLogger<UserService>.Instance);
     }
 
     private static User MakeUser(int id, string username = "alice") => new()
@@ -69,11 +71,11 @@ public class UserServiceTests
     }
 
     [Fact]
-    public async Task GetByIdAsync_NotFound_ThrowsKeyNotFoundException()
+    public async Task GetByIdAsync_NotFound_ThrowsNotFoundException()
     {
         _userRepo.Setup(r => r.GetByIdAsync(99)).ReturnsAsync((User?)null);
 
-        await Assert.ThrowsAsync<KeyNotFoundException>(() => _sut.GetByIdAsync(99));
+        await Assert.ThrowsAsync<NotFoundException>(() => _sut.GetByIdAsync(99));
     }
 
     // ── Update ────────────────────────────────────────────────────
@@ -97,11 +99,11 @@ public class UserServiceTests
     }
 
     [Fact]
-    public async Task UpdateAsync_NotFound_ThrowsKeyNotFoundException()
+    public async Task UpdateAsync_NotFound_ThrowsNotFoundException()
     {
         _userRepo.Setup(r => r.GetByIdAsync(99)).ReturnsAsync((User?)null);
 
-        await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+        await Assert.ThrowsAsync<NotFoundException>(() =>
             _sut.UpdateAsync(99, new UpdateUserRequest { Username = "x", Email = "x@x.com", Role = "User" }));
     }
 
@@ -185,11 +187,11 @@ public class UserServiceTests
     }
 
     [Fact]
-    public async Task DeleteAsync_NotFound_ThrowsKeyNotFoundException()
+    public async Task DeleteAsync_NotFound_ThrowsNotFoundException()
     {
         _userRepo.Setup(r => r.GetByIdAsync(99)).ReturnsAsync((User?)null);
 
-        await Assert.ThrowsAsync<KeyNotFoundException>(() => _sut.DeleteAsync(99));
+        await Assert.ThrowsAsync<NotFoundException>(() => _sut.DeleteAsync(99));
     }
 
     // ── SetActive ─────────────────────────────────────────────────
@@ -205,11 +207,11 @@ public class UserServiceTests
     }
 
     [Fact]
-    public async Task SetActiveAsync_NotFound_ThrowsKeyNotFoundException()
+    public async Task SetActiveAsync_NotFound_ThrowsNotFoundException()
     {
         _userRepo.Setup(r => r.GetByIdAsync(99)).ReturnsAsync((User?)null);
 
-        await Assert.ThrowsAsync<KeyNotFoundException>(() => _sut.SetActiveAsync(99, false));
+        await Assert.ThrowsAsync<NotFoundException>(() => _sut.SetActiveAsync(99, false));
     }
 
     // ── ChangePassword ────────────────────────────────────────────
@@ -238,11 +240,11 @@ public class UserServiceTests
     }
 
     [Fact]
-    public async Task ChangePasswordAsync_UserNotFound_ThrowsKeyNotFoundException()
+    public async Task ChangePasswordAsync_UserNotFound_ThrowsNotFoundException()
     {
         _userRepo.Setup(r => r.GetByIdAsync(99)).ReturnsAsync((User?)null);
 
-        await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+        await Assert.ThrowsAsync<NotFoundException>(() =>
             _sut.ChangePasswordAsync(99, "any", "NewPass1"));
     }
 
@@ -259,11 +261,11 @@ public class UserServiceTests
     }
 
     [Fact]
-    public async Task AdminSetPasswordAsync_UserNotFound_ThrowsKeyNotFoundException()
+    public async Task AdminSetPasswordAsync_UserNotFound_ThrowsNotFoundException()
     {
         _userRepo.Setup(r => r.GetByIdAsync(99)).ReturnsAsync((User?)null);
 
-        await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+        await Assert.ThrowsAsync<NotFoundException>(() =>
             _sut.AdminSetPasswordAsync(99, "NewPass1"));
     }
 
@@ -286,11 +288,11 @@ public class UserServiceTests
     }
 
     [Fact]
-    public async Task CreateApiKeyAsync_UserNotFound_ThrowsKeyNotFoundException()
+    public async Task CreateApiKeyAsync_UserNotFound_ThrowsNotFoundException()
     {
         _userRepo.Setup(r => r.GetByIdAsync(99)).ReturnsAsync((User?)null);
 
-        await Assert.ThrowsAsync<KeyNotFoundException>(() => _sut.CreateApiKeyAsync(99, "key"));
+        await Assert.ThrowsAsync<NotFoundException>(() => _sut.CreateApiKeyAsync(99, "key"));
     }
 
     [Fact]
@@ -322,19 +324,19 @@ public class UserServiceTests
     }
 
     [Fact]
-    public async Task RevokeApiKeyAsync_KeyNotFound_ThrowsKeyNotFoundException()
+    public async Task RevokeApiKeyAsync_KeyNotFound_ThrowsNotFoundException()
     {
         _apiKeyRepo.Setup(r => r.GetByIdAsync(99)).ReturnsAsync((ApiKey?)null);
 
-        await Assert.ThrowsAsync<KeyNotFoundException>(() => _sut.RevokeApiKeyAsync(1, 99));
+        await Assert.ThrowsAsync<NotFoundException>(() => _sut.RevokeApiKeyAsync(1, 99));
     }
 
     [Fact]
-    public async Task RevokeApiKeyAsync_KeyBelongsToOtherUser_ThrowsUnauthorizedAccessException()
+    public async Task RevokeApiKeyAsync_KeyBelongsToOtherUser_ThrowsForbiddenException()
     {
         _apiKeyRepo.Setup(r => r.GetByIdAsync(1))
                    .ReturnsAsync(new ApiKey { Id = 1, UserId = 99, Name = "Other" });
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _sut.RevokeApiKeyAsync(1, 1));
+        await Assert.ThrowsAsync<ForbiddenException>(() => _sut.RevokeApiKeyAsync(1, 1));
     }
 }

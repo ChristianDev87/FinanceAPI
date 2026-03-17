@@ -26,12 +26,14 @@ A multi-user personal finance REST API built with .NET 10, Dapper and SQLite, Po
 
 ## Deployment Model
 
-This application is designed for **single-instance deployment**. Two operational invariants are enforced in-process using `SemaphoreSlim`:
+Two operational invariants are enforced atomically via **Serializable database transactions** with retry logic:
 
 - The first registered user is automatically assigned the `Admin` role.
-- At least one active `Admin` must exist at all times.
+- At least one active `Admin` must exist at all times (demotion, deletion, and deactivation are all guarded).
 
-Both invariants are **not safe under multi-replica deployments** (e.g. Kubernetes with replicas > 1, or multiple Docker containers behind a load balancer). Running multiple instances can cause races that break these guarantees. If horizontal scaling is required, these invariants must be moved to the database layer (e.g. conditional UPDATE/DELETE with row-level locking).
+These checks are safe under **multi-instance deployments** (e.g. Kubernetes, multiple Docker containers behind a load balancer). Concurrent requests on different replicas are serialized by the database and retried automatically on transient conflicts.
+
+> For SQLite deployments, the Serializable isolation level maps to `BEGIN EXCLUSIVE`, so multi-writer concurrency is limited by SQLite's file-level locking. For production high-concurrency workloads, PostgreSQL or MySQL is recommended.
 
 ## Getting Started
 
@@ -66,12 +68,13 @@ https://localhost:7185/swagger
 | `Kestrel.Endpoints.Https.Url` | HTTPS listen address (default `https://localhost:7185`) |
 | `DatabaseSettings.Provider` | Database provider: `sqlite` (default), `postgresql`, `mysql` |
 | `ConnectionStrings.DefaultConnection` | Connection string for the selected provider |
-| `JwtSettings.SecretKey` | **Required.** At least 32 characters, keep secret |
+| `JwtSettings.SecretKey` | **Required.** At least 32 characters. Never commit to source control |
 | `JwtSettings.Issuer` | JWT issuer claim |
 | `JwtSettings.Audience` | JWT audience claim |
 | `JwtSettings.ExpirationHours` | Token lifetime in hours (default `24`) |
 | `CorsSettings.AllowedOrigins` | Allowed frontend origins in production |
 | `DefaultCategories` | Category list auto-assigned to every new user on registration |
+| `SwaggerSettings.Enabled` | Set to `true` to enable Swagger UI in non-Development environments |
 
 > In **Development** mode CORS allows any origin. In **Production** only the origins listed in `CorsSettings.AllowedOrigins` are allowed.
 
@@ -169,6 +172,10 @@ X-Api-Key: <key>
 
 Only the SHA-256 hash of the key is stored in the database. Creating a new key automatically deactivates all previous keys for that user.
 
+### Auth Priority
+
+When both `Authorization: Bearer` and `X-Api-Key` are present on the same request, the **JWT takes priority** and the API key header is ignored. API key authentication is only attempted when no `Authorization` header is present.
+
 ## Roles
 
 | Role | How assigned | Access |
@@ -185,14 +192,15 @@ Only the SHA-256 hash of the key is stored in the database. Creating a new key a
 FinanceAPI/
 ├── Controllers/        AuthController, ProfileController, UsersController,
 │                       CategoriesController, TransactionsController, StatisticsController
-├── Database/           IDbConnectionFactory, ISqlDialect,
+├── Database/           IDbConnectionFactory, ISqlDialect, DbTransactionHelper,
 │                       SqliteConnectionFactory, PostgreSqlConnectionFactory, MySqlConnectionFactory,
 │                       SqliteDialect, PostgreSqlDialect, MySqlDialect,
 │                       DatabaseInitializer, DateOnlyTypeHandler,
-│                       schema.sql, schema.postgresql.sql, schema.mysql.sql
+│                       Migrations/{SQLite,PostgreSQL,MySQL}/V001__initial_schema.sql
 ├── Domain/             UserRoles (Admin, User), TransactionTypes (income, expense)
 ├── DTOs/               Auth/, Users/, ApiKeys/, Categories/,
 │                       Transactions/, Statistics/, Profile/
+├── Exceptions/         ConflictException, NotFoundException, ForbiddenException
 ├── Interfaces/
 │   ├── Repositories/   IUserRepository, IApiKeyRepository,
 │   │                   ICategoryRepository, ITransactionRepository
@@ -202,7 +210,7 @@ FinanceAPI/
 │                       DualAuthMiddleware (JWT + API key)
 ├── Models/             User, ApiKey, Category, Transaction, Role
 ├── Repositories/       Dapper implementations
-├── Services/           Business logic
+├── Services/           Business logic (with structured audit logging)
 └── Program.cs          DI registration, middleware pipeline
 ```
 
@@ -211,27 +219,32 @@ FinanceAPI/
 All errors are returned as JSON by `ErrorHandlingMiddleware`:
 
 ```json
-{ "error": "Human-readable message" }
+{ "error": "Human-readable message", "statusCode": 404 }
 ```
 
 | Exception type | HTTP status |
 |----------------|-------------|
-| `KeyNotFoundException` | 404 Not Found |
+| `NotFoundException` | 404 Not Found |
+| `ForbiddenException` | 403 Forbidden |
 | `UnauthorizedAccessException` | 401 Unauthorized |
+| `ConflictException` | 409 Conflict |
 | `ArgumentException` / `InvalidOperationException` | 400 Bad Request |
-| Any other | 500 Internal Server Error |
+| DB unique constraint violation | 409 Conflict |
+| Any other | 500 Internal Server Error (reference ID logged) |
 
-Every response includes an `X-Correlation-Id` header containing the ASP.NET Core trace identifier. This value can be used to correlate client requests with server logs.
+Every response includes an `X-Correlation-Id` header containing the ASP.NET Core trace identifier. Use it to correlate client errors with server logs.
+
+500 responses contain a short reference ID (`Reference: abc12345`) that can be found in the server log alongside the full exception.
 
 ## Database
 
-The database provider is selected via `DatabaseSettings:Provider` in `appsettings.json`. The matching schema file is applied automatically on every startup — no manual migration needed.
+The database provider is selected via `DatabaseSettings:Provider` in `appsettings.json`. Schema migrations are applied automatically on startup via versioned SQL files in `Database/Migrations/{Provider}/`. The `SchemaVersions` table tracks which migrations have been applied; only new migrations run on each startup.
 
-| Provider value | Database | Schema file |
+| Provider value | Database | Migrations folder |
 |---|---|---|
-| `sqlite` (default) | SQLite | `Database/schema.sql` |
-| `postgresql` / `postgres` | PostgreSQL 13+ | `Database/schema.postgresql.sql` |
-| `mysql` | MySQL 8.0.13+ / MariaDB 10.6+ | `Database/schema.mysql.sql` |
+| `sqlite` (default) | SQLite | `Database/Migrations/SQLite/` |
+| `postgresql` / `postgres` | PostgreSQL 13+ | `Database/Migrations/PostgreSQL/` |
+| `mysql` | MySQL 8.0.13+ / MariaDB 10.6+ | `Database/Migrations/MySQL/` |
 
 ### SQLite (default)
 
@@ -256,7 +269,30 @@ The database file is created automatically in the `data/` subfolder relative to 
 "ConnectionStrings": { "DefaultConnection": "Server=localhost;Port=3306;Database=financedb;User=finance_user;Password=CHANGE-ME" }
 ```
 
-`CREATE TABLE IF NOT EXISTS` statements are idempotent. `CREATE INDEX` failures on subsequent startups are silently skipped. `ALTER TABLE ... ADD COLUMN` migrations (SQLite) are silently skipped if the column already exists.
+Each migration file is named `V{NNN}__{description}.sql` (e.g. `V001__initial_schema.sql`). Migrations run in version order and are recorded in `SchemaVersions` after successful execution.
+
+## Operational Notes
+
+### Secrets
+
+- `JwtSettings:SecretKey` must be at least 32 characters. Use environment variables or a secrets manager in production — never commit the real value to source control.
+- Use `appsettings.example.json` as a template; copy it to `appsettings.json` locally (`.gitignore` excludes the live file).
+
+### Health & Monitoring
+
+- `GET /health` checks both application liveness and database reachability. Returns `Healthy` when the DB can be queried.
+- Every response carries `X-Correlation-Id` (ASP.NET Core trace ID) for log correlation.
+- Audit events (login, role changes, user deactivation, API key creation/revocation) are emitted as structured log entries with user IDs. Wire the ASP.NET Core logging pipeline to your preferred sink (console, file, OpenTelemetry) in `appsettings.json`.
+
+### Swagger UI
+
+Swagger is enabled automatically in the `Development` environment. In other environments set `SwaggerSettings:Enabled: true` in `appsettings.json` to expose it.
+
+### Scaling
+
+- PostgreSQL and MySQL support concurrent multi-instance deployments safely. Admin invariants are enforced with Serializable transactions and automatic retry.
+- SQLite is suitable for single-instance or low-concurrency deployments only. It does not support concurrent writes from multiple processes.
+- The rate limiter (10 auth requests/minute/IP) is process-local. For multi-instance deployments, use a shared store (Redis) or a gateway-level rate limiter.
 
 ## License
 

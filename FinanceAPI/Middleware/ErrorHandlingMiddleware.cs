@@ -43,7 +43,9 @@ public class ErrorHandlingMiddleware
         int statusCode = ex switch
         {
             UnauthorizedAccessException => StatusCodes.Status401Unauthorized,
+            FinanceAPI.Exceptions.NotFoundException => StatusCodes.Status404NotFound,
             KeyNotFoundException => StatusCodes.Status404NotFound,
+            FinanceAPI.Exceptions.ForbiddenException => StatusCodes.Status403Forbidden,
             ConflictException => StatusCodes.Status409Conflict,
             InvalidOperationException => StatusCodes.Status400BadRequest,
             ArgumentException => StatusCodes.Status400BadRequest,

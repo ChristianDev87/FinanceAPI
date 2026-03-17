@@ -45,11 +45,11 @@ public class CategoryService : ICategoryService
     public async Task<CategoryDto> UpdateAsync(int userId, int categoryId, UpdateCategoryRequest request, CancellationToken cancellationToken = default)
     {
         Category category = await _categoryRepo.GetByIdAsync(categoryId, cancellationToken)
-                       ?? throw new KeyNotFoundException($"Category {categoryId} not found.");
+                       ?? throw new NotFoundException($"Category {categoryId} not found.");
 
         if (category.UserId != userId)
         {
-            throw new UnauthorizedAccessException("Category does not belong to you.");
+            throw new ForbiddenException("Category does not belong to you.");
         }
 
         if (!string.Equals(category.Name, request.Name, StringComparison.OrdinalIgnoreCase))
@@ -79,11 +79,11 @@ public class CategoryService : ICategoryService
     public async Task DeleteAsync(int userId, int categoryId, CancellationToken cancellationToken = default)
     {
         Category category = await _categoryRepo.GetByIdAsync(categoryId, cancellationToken)
-                       ?? throw new KeyNotFoundException($"Category {categoryId} not found.");
+                       ?? throw new NotFoundException($"Category {categoryId} not found.");
 
         if (category.UserId != userId)
         {
-            throw new UnauthorizedAccessException("Category does not belong to you.");
+            throw new ForbiddenException("Category does not belong to you.");
         }
 
         if (await _categoryRepo.HasTransactionsAsync(categoryId, cancellationToken))
@@ -103,7 +103,7 @@ public class CategoryService : ICategoryService
         {
             if (!userCategoryIds.Contains(item.Id))
             {
-                throw new UnauthorizedAccessException($"Category {item.Id} does not belong to you.");
+                throw new ForbiddenException($"Category {item.Id} does not belong to you.");
             }
         }
 

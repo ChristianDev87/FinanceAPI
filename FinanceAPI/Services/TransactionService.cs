@@ -1,5 +1,6 @@
 using System.Globalization;
 using FinanceAPI.DTOs.Transactions;
+using FinanceAPI.Exceptions;
 using FinanceAPI.Interfaces.Repositories;
 using FinanceAPI.Interfaces.Services;
 using FinanceAPI.Models;
@@ -29,11 +30,11 @@ public class TransactionService : ITransactionService
     public async Task<TransactionDto> GetByIdAsync(int userId, int transactionId, CancellationToken cancellationToken = default)
     {
         Transaction transaction = await _transactionRepo.GetByIdAsync(transactionId, cancellationToken)
-                          ?? throw new KeyNotFoundException($"Transaction {transactionId} not found.");
+                          ?? throw new NotFoundException($"Transaction {transactionId} not found.");
 
         if (transaction.UserId != userId)
         {
-            throw new UnauthorizedAccessException("Transaction does not belong to you.");
+            throw new ForbiddenException("Transaction does not belong to you.");
         }
 
         Category? category = transaction.CategoryId.HasValue
@@ -49,10 +50,10 @@ public class TransactionService : ITransactionService
         if (request.CategoryId.HasValue)
         {
             category = await _categoryRepo.GetByIdAsync(request.CategoryId.Value, cancellationToken)
-                      ?? throw new KeyNotFoundException($"Category {request.CategoryId} not found.");
+                      ?? throw new NotFoundException($"Category {request.CategoryId} not found.");
             if (category.UserId != userId)
             {
-                throw new UnauthorizedAccessException("Category does not belong to you.");
+                throw new ForbiddenException("Category does not belong to you.");
             }
             if (!string.Equals(category.Type, request.Type, StringComparison.OrdinalIgnoreCase))
             {
@@ -79,21 +80,21 @@ public class TransactionService : ITransactionService
     public async Task<TransactionDto> UpdateAsync(int userId, int transactionId, UpdateTransactionRequest request, CancellationToken cancellationToken = default)
     {
         Transaction transaction = await _transactionRepo.GetByIdAsync(transactionId, cancellationToken)
-                          ?? throw new KeyNotFoundException($"Transaction {transactionId} not found.");
+                          ?? throw new NotFoundException($"Transaction {transactionId} not found.");
 
         if (transaction.UserId != userId)
         {
-            throw new UnauthorizedAccessException("Transaction does not belong to you.");
+            throw new ForbiddenException("Transaction does not belong to you.");
         }
 
         Category? category = null;
         if (request.CategoryId.HasValue)
         {
             category = await _categoryRepo.GetByIdAsync(request.CategoryId.Value, cancellationToken)
-                      ?? throw new KeyNotFoundException($"Category {request.CategoryId} not found.");
+                      ?? throw new NotFoundException($"Category {request.CategoryId} not found.");
             if (category.UserId != userId)
             {
-                throw new UnauthorizedAccessException("Category does not belong to you.");
+                throw new ForbiddenException("Category does not belong to you.");
             }
             if (!string.Equals(category.Type, request.Type, StringComparison.OrdinalIgnoreCase))
             {
@@ -115,11 +116,11 @@ public class TransactionService : ITransactionService
     public async Task DeleteAsync(int userId, int transactionId, CancellationToken cancellationToken = default)
     {
         Transaction transaction = await _transactionRepo.GetByIdAsync(transactionId, cancellationToken)
-                          ?? throw new KeyNotFoundException($"Transaction {transactionId} not found.");
+                          ?? throw new NotFoundException($"Transaction {transactionId} not found.");
 
         if (transaction.UserId != userId)
         {
-            throw new UnauthorizedAccessException("Transaction does not belong to you.");
+            throw new ForbiddenException("Transaction does not belong to you.");
         }
 
         await _transactionRepo.DeleteAsync(transactionId, cancellationToken);

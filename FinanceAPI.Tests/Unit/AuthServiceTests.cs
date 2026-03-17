@@ -5,6 +5,7 @@ using FinanceAPI.Interfaces.Repositories;
 using FinanceAPI.Models;
 using FinanceAPI.Services;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
 namespace FinanceAPI.Tests.Unit;
@@ -34,7 +35,7 @@ public class AuthServiceTests
             { "JwtSettings:ExpirationHours", "1" },
         };
         IConfigurationRoot config = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
-        _sut = new AuthService(_userRepo.Object, _categoryRepo.Object, config, _connFactory.Object);
+        _sut = new AuthService(_userRepo.Object, _categoryRepo.Object, config, _connFactory.Object, NullLogger<AuthService>.Instance);
 
         // Default: at least one existing user so new registrations receive "User" role
         _userRepo.Setup(r => r.AnyAsync(It.IsAny<IDbConnection>(), It.IsAny<IDbTransaction>()))
@@ -91,7 +92,7 @@ public class AuthServiceTests
             { "DefaultCategories:1:Color",    "#e74a3b" },
         };
         IConfigurationRoot config = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
-        AuthService sut = new AuthService(_userRepo.Object, _categoryRepo.Object, config, _connFactory.Object);
+        AuthService sut = new AuthService(_userRepo.Object, _categoryRepo.Object, config, _connFactory.Object, NullLogger<AuthService>.Instance);
 
         await sut.RegisterAsync(new RegisterRequest { Username = "bob", Email = "bob@test.com", Password = "pass" });
 

@@ -161,8 +161,8 @@ public class LastAdminIntegrationTests : IClassFixture<FinanceApiFactory>
             User? admin1 = await userRepo.GetByUsernameAsync("p2_conc1");
 
             // Both admins attempt to deactivate each other at the same time
-            Task<HttpResponseMessage> req1 = admin1Client.PutAsJsonAsync($"/api/users/{admin2.Id}/active", false);
-            Task<HttpResponseMessage> req2 = admin2Client.PutAsJsonAsync($"/api/users/{admin1!.Id}/active", false);
+            Task<HttpResponseMessage> req1 = admin1Client.PutAsJsonAsync($"/api/users/{admin2.Id}/active", new { isActive = false });
+            Task<HttpResponseMessage> req2 = admin2Client.PutAsJsonAsync($"/api/users/{admin1!.Id}/active", new { isActive = false });
 
             HttpResponseMessage[] results = await Task.WhenAll(req1, req2);
 

@@ -275,7 +275,22 @@ builder.Services.AddCors(options =>
 });
 
 // ── Health checks ────────────────────────────────────────────────
-builder.Services.AddHealthChecks();
+builder.Services.AddHealthChecks()
+    .AddAsyncCheck("database", async ct =>
+    {
+        try
+        {
+            using System.Data.IDbConnection conn = dbFactory.CreateConnection();
+            conn.Open();
+            await Dapper.SqlMapper.ExecuteScalarAsync<int>(
+                conn, new Dapper.CommandDefinition("SELECT 1", cancellationToken: ct));
+            return Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy("Database is reachable.");
+        }
+        catch (Exception ex)
+        {
+            return Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Unhealthy("Database is unreachable.", ex);
+        }
+    });
 
 // ═════════════════════════════════════════════════════════════════
 WebApplication app = builder.Build();
@@ -306,11 +321,13 @@ app.Use(async (context, next) =>
 app.UseMiddleware<ErrorHandlingMiddleware>();
 app.UseRateLimiter();
 
-//if (app.Environment.IsDevelopment())
-//{
-app.UseSwagger();
-app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "FinanceAPI v1"));
-//}
+bool swaggerEnabled = app.Environment.IsDevelopment()
+    || app.Configuration.GetValue<bool>("SwaggerSettings:Enabled");
+if (swaggerEnabled)
+{
+    app.UseSwagger();
+    app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "FinanceAPI v1"));
+}
 
 if (Environment.GetEnvironmentVariable("DISABLE_HTTPS_REDIRECT") != "true")
 {

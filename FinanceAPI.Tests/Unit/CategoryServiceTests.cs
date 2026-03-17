@@ -1,4 +1,5 @@
 using FinanceAPI.DTOs.Categories;
+using FinanceAPI.Exceptions;
 using FinanceAPI.Interfaces.Repositories;
 using FinanceAPI.Models;
 using FinanceAPI.Services;
@@ -93,11 +94,11 @@ public class CategoryServiceTests
     }
 
     [Fact]
-    public async Task UpdateAsync_CategoryNotFound_ThrowsKeyNotFoundException()
+    public async Task UpdateAsync_CategoryNotFound_ThrowsNotFoundException()
     {
         _repo.Setup(r => r.GetByIdAsync(99)).ReturnsAsync((Category?)null);
 
-        await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+        await Assert.ThrowsAsync<NotFoundException>(() =>
             _sut.UpdateAsync(1, 99, new UpdateCategoryRequest
             {
                 Name = "X",
@@ -108,11 +109,11 @@ public class CategoryServiceTests
     }
 
     [Fact]
-    public async Task UpdateAsync_OtherUsersCategory_ThrowsUnauthorizedAccessException()
+    public async Task UpdateAsync_OtherUsersCategory_ThrowsForbiddenException()
     {
         _repo.Setup(r => r.GetByIdAsync(2)).ReturnsAsync(MakeCat(2, 99)); // belongs to user 99
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+        await Assert.ThrowsAsync<ForbiddenException>(() =>
             _sut.UpdateAsync(1, 2, new UpdateCategoryRequest
             {
                 Name = "X",
@@ -152,19 +153,19 @@ public class CategoryServiceTests
     }
 
     [Fact]
-    public async Task DeleteAsync_NotFound_ThrowsKeyNotFoundException()
+    public async Task DeleteAsync_NotFound_ThrowsNotFoundException()
     {
         _repo.Setup(r => r.GetByIdAsync(99)).ReturnsAsync((Category?)null);
 
-        await Assert.ThrowsAsync<KeyNotFoundException>(() => _sut.DeleteAsync(1, 99));
+        await Assert.ThrowsAsync<NotFoundException>(() => _sut.DeleteAsync(1, 99));
     }
 
     [Fact]
-    public async Task DeleteAsync_OtherUsersCategory_ThrowsUnauthorizedAccessException()
+    public async Task DeleteAsync_OtherUsersCategory_ThrowsForbiddenException()
     {
         _repo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(MakeCat(1, 99));
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _sut.DeleteAsync(1, 1));
+        await Assert.ThrowsAsync<ForbiddenException>(() => _sut.DeleteAsync(1, 1));
     }
 
     [Fact]
