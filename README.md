@@ -73,6 +73,8 @@ https://localhost:7185/swagger
 | `JwtSettings.Issuer` | JWT issuer claim |
 | `JwtSettings.Audience` | JWT audience claim |
 | `JwtSettings.ExpirationHours` | Token lifetime in hours (default `24`) |
+| `ForwardedHeadersSettings.Enabled` | Set to `true` to trust `X-Forwarded-For` from listed proxies (default: `false`) |
+| `ForwardedHeadersSettings.TrustedProxies` | Array of trusted proxy IPs (e.g. `["10.0.0.1"]`). Only used when `Enabled: true` |
 | `RateLimitSettings.AuthPermitLimit` | Max auth requests per IP per window (default `10`) |
 | `RateLimitSettings.AuthWindowMinutes` | Rate-limit window in minutes (default `1`) |
 | `CorsSettings.AllowedOrigins` | Allowed frontend origins in production |
@@ -297,7 +299,7 @@ Swagger is enabled automatically in the `Development` environment. In other envi
 - PostgreSQL and MySQL support concurrent multi-instance deployments safely. Admin invariants are enforced with Serializable transactions and automatic retry.
 - SQLite is suitable for single-instance or low-concurrency deployments only. It does not support concurrent writes from multiple processes.
 - The auth rate limiter is partitioned by client IP and is process-local — each application instance maintains its own counters. The limit is configurable via `RateLimitSettings:AuthPermitLimit` and `AuthWindowMinutes` (default: 10 requests/minute). For multi-instance deployments, use a shared store (Redis) or a gateway-level rate limiter instead.
-- **Reverse proxy / load balancer:** When the API runs behind a reverse proxy, `RemoteIpAddress` reflects the proxy's IP, not the real client IP. Add `UseForwardedHeaders` middleware and configure `X-Forwarded-For` trust on the proxy to ensure per-client IP partitioning works correctly in that scenario.
+- **Reverse proxy / load balancer:** When the API runs behind a reverse proxy, set `ForwardedHeadersSettings:Enabled: true` and list the proxy IP(s) in `TrustedProxies`. This enables `X-Forwarded-For` processing so the rate limiter sees the real client IP instead of the proxy's IP. Only explicitly listed IPs are trusted — unlisted sources cannot spoof the header.
 
 ## License
 

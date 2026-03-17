@@ -10,6 +10,7 @@ using FinanceAPI.Models;
 using FinanceAPI.Repositories;
 using FinanceAPI.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -247,6 +248,29 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
 
 builder.Services.AddAuthorization();
 
+// ── Forwarded Headers (Reverse Proxy support) ────────────────────
+// When Enabled, X-Forwarded-For is trusted from the listed proxy IPs only.
+// Clearing KnownNetworks/KnownProxies prevents header spoofing from untrusted sources.
+IConfigurationSection fh = builder.Configuration.GetSection("ForwardedHeadersSettings");
+bool forwardedHeadersEnabled = fh.GetValue("Enabled", false);
+if (forwardedHeadersEnabled)
+{
+    string[] trustedProxies = fh.GetSection("TrustedProxies").Get<string[]>() ?? Array.Empty<string>();
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+        options.KnownNetworks.Clear();
+        options.KnownProxies.Clear();
+        foreach (string proxy in trustedProxies)
+        {
+            if (System.Net.IPAddress.TryParse(proxy, out System.Net.IPAddress? ip))
+            {
+                options.KnownProxies.Add(ip);
+            }
+        }
+    });
+}
+
 // ── Rate Limiting ────────────────────────────────────────────────
 builder.Services.AddRateLimiter(options =>
 {
@@ -338,6 +362,10 @@ app.Use(async (context, next) =>
 });
 
 app.UseMiddleware<ErrorHandlingMiddleware>();
+if (forwardedHeadersEnabled)
+{
+    app.UseForwardedHeaders();
+}
 app.UseRateLimiter();
 
 bool swaggerEnabled = app.Environment.IsDevelopment()
