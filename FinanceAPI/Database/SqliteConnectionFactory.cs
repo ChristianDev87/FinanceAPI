@@ -15,10 +15,17 @@ public class SqliteConnectionFactory : IDbConnectionFactory
     public IDbConnection CreateConnection()
     {
         SqliteConnection connection = new SqliteConnection(_connectionString);
-        connection.Open();
-        using SqliteCommand cmd = connection.CreateCommand();
-        cmd.CommandText = "PRAGMA foreign_keys = ON";
-        cmd.ExecuteNonQuery();
+        // Set PRAGMA on every open so FK enforcement is always active,
+        // regardless of where or how many times the connection is opened.
+        connection.StateChange += (_, e) =>
+        {
+            if (e.CurrentState == System.Data.ConnectionState.Open)
+            {
+                using SqliteCommand cmd = connection.CreateCommand();
+                cmd.CommandText = "PRAGMA foreign_keys = ON";
+                cmd.ExecuteNonQuery();
+            }
+        };
         return connection;
     }
 }

@@ -32,7 +32,7 @@ The following invariants are enforced atomically via **Serializable database tra
 - At least one active `Admin` must exist at all times (demotion, deletion, and deactivation are all guarded).
 - At most one active API key exists per user at any time (enforced by a Serializable transaction on key creation; SQLite and PostgreSQL additionally enforce this at the schema level via a partial unique index).
 
-These checks are safe under **multi-instance deployments** (e.g. Kubernetes, multiple Docker containers behind a load balancer). Concurrent requests on different replicas are serialized by the database and retried automatically on transient conflicts.
+These checks are safe under **multi-instance deployments** (e.g. Kubernetes, multiple Docker containers behind a load balancer). Concurrent requests on different replicas are serialized by the database and retried automatically on transient conflicts (serialization failures and deadlocks).
 
 > For SQLite deployments, the Serializable isolation level maps to `BEGIN EXCLUSIVE`, so multi-writer concurrency is limited by SQLite's file-level locking. For production high-concurrency workloads, PostgreSQL or MySQL is recommended.
 
@@ -260,7 +260,7 @@ The database provider is selected via `DatabaseSettings:Provider` in `appsetting
 "ConnectionStrings": { "DefaultConnection": "Data Source=data/finance.db" }
 ```
 
-The database file is created automatically in the `data/` subfolder relative to the application root. No external server required.
+The database file is created automatically in the `data/` subfolder relative to the application root. No external server required. Foreign key enforcement (`ON DELETE CASCADE` / `ON DELETE SET NULL`) is activated automatically on every connection.
 
 ### PostgreSQL
 
@@ -275,6 +275,8 @@ The database file is created automatically in the `data/` subfolder relative to 
 "DatabaseSettings": { "Provider": "mysql" },
 "ConnectionStrings": { "DefaultConnection": "Server=localhost;Port=3306;Database=financedb;User=finance_user;Password=CHANGE-ME" }
 ```
+
+> The schema migration sets `utf8mb4_unicode_ci` on `Username`, `Email` and `Categories.Name` so that uniqueness constraints are case-insensitive regardless of the server's default collation. No manual collation configuration is required.
 
 Each migration file is named `V{NNN}__{description}.sql` (e.g. `V001__initial_schema.sql`). Migrations run in version order and are recorded in `SchemaVersions` after successful execution.
 

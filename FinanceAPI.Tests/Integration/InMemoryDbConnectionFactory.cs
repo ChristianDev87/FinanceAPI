@@ -23,6 +23,9 @@ public sealed class InMemoryDbConnectionFactory : IDbConnectionFactory
     {
         SqliteConnection conn = new SqliteConnection(_connectionString);
         conn.Open();
+        using SqliteCommand cmd = conn.CreateCommand();
+        cmd.CommandText = "PRAGMA foreign_keys = ON";
+        cmd.ExecuteNonQuery();
         return conn;
     }
 }
