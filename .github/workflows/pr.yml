@@ -12,27 +12,22 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  test:
+
+  # ── Gruppe 1: Setup ──────────────────────────────────────────────────────────
+  setup:
     runs-on: [ self-hosted, linux, dotnet10 ]
+    outputs:
+      postgres: ${{ steps.postgres.outcome }}
+      mysql: ${{ steps.mysql.outcome }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Restore
-        run: dotnet restore
-
-      - name: Lint
-        run: dotnet format style --verify-no-changes --verbosity diagnostic
-
-      - name: Build
-        id: build
-        run: dotnet build --no-restore --configuration Release
-
-      # ── PostgreSQL ────────────────────────────────────────────────────────────
+      - name: Remove stale containers
+        run: |
+          docker ps -q --filter "name=ci-postgres-" | xargs -r docker rm -f
+          docker ps -q --filter "name=ci-mysql-"    | xargs -r docker rm -f
 
       - name: Start PostgreSQL
-        id: setup-postgres
-        if: steps.build.outcome == 'success'
+        id: postgres
+        continue-on-error: true
         run: |
           docker run -d --name ci-postgres-${{ github.run_id }} \
             -e POSTGRES_DB=financedb \
@@ -45,32 +40,9 @@ jobs:
             sleep 1
           done
 
-      - name: Test (PostgreSQL)
-        if: steps.setup-postgres.outcome == 'success'
-        run: dotnet test --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=results.trx" --results-directory ./TestResults
-        env:
-          JwtSettings__SecretKey: "ci-test-secret-key-minimum-32-chars!!"
-          DatabaseSettings__Provider: postgresql
-          ConnectionStrings__DefaultConnection: "Host=host-gateway;Port=5432;Database=financedb;Username=finance_user;Password=ci-test-password"
-          RateLimitSettings__AuthPermitLimit: "10"
-          RateLimitSettings__AuthWindowMinutes: "1"
-
-      - name: Test Report (PostgreSQL)
-        if: always() && steps.setup-postgres.outcome != 'skipped'
-        uses: EnricoMi/publish-unit-test-result-action/linux@v2
-        with:
-          files: "./TestResults/results.trx"
-          check_name: "Test Results (postgresql)"
-
-      - name: Remove PostgreSQL
-        if: always() && steps.setup-postgres.outcome != 'skipped'
-        run: docker rm -f ci-postgres-${{ github.run_id }} 2>/dev/null || true
-
-      # ── MySQL ─────────────────────────────────────────────────────────────────
-
       - name: Start MySQL
-        id: setup-mysql
-        if: always() && steps.build.outcome == 'success'
+        id: mysql
+        continue-on-error: true
         run: |
           docker run -d --name ci-mysql-${{ github.run_id }} \
             -e MYSQL_DATABASE=financedb \
@@ -80,12 +52,45 @@ jobs:
             -p 3306:3306 \
             mysql:8-debian
           for i in $(seq 1 60); do
-            docker exec ci-mysql-${{ github.run_id }} mysqladmin ping -h localhost --silent && break
+            docker exec ci-mysql-${{ github.run_id }} \
+              mysql -h localhost -u finance_user -pci-test-password -e "SELECT 1" financedb 2>/dev/null && break
             sleep 2
           done
 
+  # ── Gruppe 2: Test ───────────────────────────────────────────────────────────
+  test:
+    runs-on: [ self-hosted, linux, dotnet10 ]
+    needs: setup
+    if: always()
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Restore
+        run: dotnet restore
+      - name: Lint
+        run: dotnet format style --verify-no-changes --verbosity diagnostic
+      - name: Build
+        id: build
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Test (PostgreSQL)
+        if: steps.build.outcome == 'success' && needs.setup.outputs.postgres == 'success'
+        run: dotnet test --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=results.trx" --results-directory ./TestResults
+        env:
+          JwtSettings__SecretKey: "ci-test-secret-key-minimum-32-chars!!"
+          DatabaseSettings__Provider: postgresql
+          ConnectionStrings__DefaultConnection: "Host=host-gateway;Port=5432;Database=financedb;Username=finance_user;Password=ci-test-password"
+          RateLimitSettings__AuthPermitLimit: "10"
+          RateLimitSettings__AuthWindowMinutes: "1"
+      - name: Test Report (PostgreSQL)
+        if: always() && needs.setup.outputs.postgres == 'success'
+        uses: EnricoMi/publish-unit-test-result-action/linux@v2
+        with:
+          files: "./TestResults/results.trx"
+          check_name: "Test Results (postgresql)"
+
       - name: Test (MySQL)
-        if: always() && steps.setup-mysql.outcome == 'success'
+        if: always() && steps.build.outcome == 'success' && needs.setup.outputs.mysql == 'success'
         run: dotnet test --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=results.trx" --results-directory ./TestResults
         env:
           JwtSettings__SecretKey: "ci-test-secret-key-minimum-32-chars!!"
@@ -93,19 +98,12 @@ jobs:
           ConnectionStrings__DefaultConnection: "Server=host-gateway;Port=3306;Database=financedb;User=finance_user;Password=ci-test-password"
           RateLimitSettings__AuthPermitLimit: "10"
           RateLimitSettings__AuthWindowMinutes: "1"
-
       - name: Test Report (MySQL)
-        if: always() && steps.setup-mysql.outcome != 'skipped'
+        if: always() && needs.setup.outputs.mysql == 'success'
         uses: EnricoMi/publish-unit-test-result-action/linux@v2
         with:
           files: "./TestResults/results.trx"
           check_name: "Test Results (mysql)"
-
-      - name: Remove MySQL
-        if: always() && steps.setup-mysql.outcome != 'skipped'
-        run: docker rm -f ci-mysql-${{ github.run_id }} 2>/dev/null || true
-
-      # ── SQLite ────────────────────────────────────────────────────────────────
 
       - name: Test (SQLite)
         if: always() && steps.build.outcome == 'success'
@@ -116,10 +114,20 @@ jobs:
           ConnectionStrings__DefaultConnection: "Data Source=ci-test.db"
           RateLimitSettings__AuthPermitLimit: "10"
           RateLimitSettings__AuthWindowMinutes: "1"
-
       - name: Test Report (SQLite)
         if: always() && steps.build.outcome == 'success'
         uses: EnricoMi/publish-unit-test-result-action/linux@v2
         with:
           files: "./TestResults/results.trx"
           check_name: "Test Results (sqlite)"
+
+  # ── Gruppe 3: Cleanup ────────────────────────────────────────────────────────
+  cleanup:
+    runs-on: [ self-hosted, linux, dotnet10 ]
+    needs: test
+    if: always()
+    steps:
+      - name: Remove containers
+        run: |
+          docker rm -f ci-postgres-${{ github.run_id }} 2>/dev/null || true
+          docker rm -f ci-mysql-${{ github.run_id }} 2>/dev/null || true
