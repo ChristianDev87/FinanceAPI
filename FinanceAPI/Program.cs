@@ -256,11 +256,15 @@ bool forwardedHeadersEnabled = fh.GetValue("Enabled", false);
 if (forwardedHeadersEnabled)
 {
     string[] trustedProxies = fh.GetSection("TrustedProxies").Get<string[]>() ?? Array.Empty<string>();
+    int forwardLimit = fh.GetValue("ForwardLimit", 1);
     builder.Services.Configure<ForwardedHeadersOptions>(options =>
     {
         options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
         options.KnownNetworks.Clear();
         options.KnownProxies.Clear();
+        // ForwardLimit = 0 means unlimited (all hops); positive values cap the
+        // number of processed X-Forwarded-For hops. Default is 1 (single proxy).
+        options.ForwardLimit = forwardLimit == 0 ? null : forwardLimit;
         foreach (string proxy in trustedProxies)
         {
             if (System.Net.IPAddress.TryParse(proxy, out System.Net.IPAddress? ip))
