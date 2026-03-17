@@ -8,5 +8,6 @@ public class User
     public string PasswordHash { get; set; } = string.Empty;
     public string RoleName { get; set; } = "User";
     public bool IsActive { get; set; } = true;
+    public int PasswordVersion { get; set; }
     public string CreatedAt { get; set; } = string.Empty;
 }

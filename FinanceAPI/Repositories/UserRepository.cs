@@ -94,7 +94,7 @@ public class UserRepository : IUserRepository
         using IDbConnection conn = _connectionFactory.CreateConnection();
         await conn.ExecuteAsync(
             new CommandDefinition(
-                "UPDATE Users SET PasswordHash = @PasswordHash WHERE Id = @Id",
+                "UPDATE Users SET PasswordHash = @PasswordHash, PasswordVersion = PasswordVersion + 1 WHERE Id = @Id",
                 new { Id = id, PasswordHash = passwordHash },
                 cancellationToken: cancellationToken));
     }
