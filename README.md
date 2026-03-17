@@ -26,10 +26,11 @@ A multi-user personal finance REST API built with .NET 10, Dapper and SQLite, Po
 
 ## Deployment Model
 
-Two operational invariants are enforced atomically via **Serializable database transactions** with retry logic:
+The following invariants are enforced atomically via **Serializable database transactions** with retry logic:
 
 - The first registered user is automatically assigned the `Admin` role.
 - At least one active `Admin` must exist at all times (demotion, deletion, and deactivation are all guarded).
+- At most one active API key exists per user at any time (enforced by a Serializable transaction on key creation; SQLite and PostgreSQL additionally enforce this at the schema level via a partial unique index).
 
 These checks are safe under **multi-instance deployments** (e.g. Kubernetes, multiple Docker containers behind a load balancer). Concurrent requests on different replicas are serialized by the database and retried automatically on transient conflicts.
 
@@ -295,7 +296,7 @@ Swagger is enabled automatically in the `Development` environment. In other envi
 
 - PostgreSQL and MySQL support concurrent multi-instance deployments safely. Admin invariants are enforced with Serializable transactions and automatic retry.
 - SQLite is suitable for single-instance or low-concurrency deployments only. It does not support concurrent writes from multiple processes.
-- The auth rate limiter allows 10 requests/minute per client IP and is process-local — each application instance maintains its own counters. For multi-instance deployments, use a shared store (Redis) or a gateway-level rate limiter instead.
+- The auth rate limiter is partitioned by client IP and is process-local — each application instance maintains its own counters. The limit is configurable via `RateLimitSettings:AuthPermitLimit` and `AuthWindowMinutes` (default: 10 requests/minute). For multi-instance deployments, use a shared store (Redis) or a gateway-level rate limiter instead.
 
 ## License
 
