@@ -421,6 +421,39 @@ public class SqliteProviderTests : IClassFixture<FinanceApiFactory>, IAsyncLifet
         Assert.Null(categoryIdAfter);
     }
 
+    [Fact]
+    public void Sqlite_ForeignKey_CascadeViaFactory_NoPragmaRequired()
+    {
+        // Verifies that SqliteConnectionFactory enables foreign keys automatically
+        // (PRAGMA foreign_keys = ON) so callers do not need to set it themselves.
+        if (!TestDataSeeder.IsSqlite)
+        {
+            return;
+        }
+
+        using IDbConnection conn = GetConnection();
+        // No manual PRAGMA here — the factory must have enabled FK enforcement.
+
+        string hash = BCrypt.Net.BCrypt.HashPassword("x", workFactor: 4);
+        conn.Execute(@"
+            INSERT INTO Users (Username, Email, PasswordHash, RoleName, IsActive)
+            VALUES ('fk_factory_test', 'fk_factory@test.com', @H, 'User', 1)",
+            new { H = hash });
+        int tempUserId = conn.ExecuteScalar<int>(
+            "SELECT Id FROM Users WHERE Username = 'fk_factory_test'");
+
+        conn.Execute(@"
+            INSERT INTO Transactions (UserId, Amount, Type, Date)
+            VALUES (@U, 10, 'income', '2026-01-01')",
+            new { U = tempUserId });
+
+        conn.Execute("DELETE FROM Users WHERE Id = @U", new { U = tempUserId });
+
+        int countAfter = conn.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM Transactions WHERE UserId = @U", new { U = tempUserId });
+        Assert.Equal(0, countAfter);
+    }
+
     private IDbConnection GetConnection()
     {
         IDbConnectionFactory dbFactory = _factory.Services.GetRequiredService<IDbConnectionFactory>();

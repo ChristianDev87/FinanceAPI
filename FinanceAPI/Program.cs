@@ -127,7 +127,13 @@ switch (provider.ToLowerInvariant())
             {
                 string fullPath = Path.GetFullPath(dataSource, builder.Environment.ContentRootPath);
                 Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
-                connectionString = $"Data Source={fullPath}";
+                // Rebuild preserving all other parameters (e.g. Foreign Keys=True).
+                connectionString = string.Join(";", rawConnStr.Split(';')
+                    .Select(p => p.Trim())
+                    .Where(p => p.Length > 0)
+                    .Select(p => p.StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase)
+                        ? $"Data Source={fullPath}"
+                        : p));
             }
         }
 
