@@ -67,7 +67,7 @@ public class TransactionRepository : ITransactionRepository
         using IDbConnection conn = _connectionFactory.CreateConnection();
         return await _dialect.InsertAsync(conn,
             "INSERT INTO Transactions (UserId, Amount, Type, CategoryId, Date, Description) VALUES (@UserId, @Amount, @Type, @CategoryId, @Date, @Description)",
-            transaction);
+            transaction, cancellationToken: cancellationToken);
     }
 
     public async Task UpdateAsync(Transaction transaction, CancellationToken cancellationToken = default)

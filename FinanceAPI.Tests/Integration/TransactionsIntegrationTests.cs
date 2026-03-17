@@ -135,7 +135,7 @@ public class TransactionsIntegrationTests : IClassFixture<FinanceApiFactory>
     }
 
     [Fact]
-    public async Task GetById_OtherUsersTransaction_Returns401()
+    public async Task GetById_OtherUsersTransaction_Returns403()
     {
         HttpClient owner = await TestHelpers.CreateAuthenticatedClientAsync(_factory, "tx_owner");
         HttpClient intruder = await TestHelpers.CreateAuthenticatedClientAsync(_factory, "tx_intruder");
@@ -150,7 +150,7 @@ public class TransactionsIntegrationTests : IClassFixture<FinanceApiFactory>
 
         HttpResponseMessage response = await intruder.GetAsync($"/api/transactions/{created!.Id}");
 
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]
@@ -203,7 +203,7 @@ public class TransactionsIntegrationTests : IClassFixture<FinanceApiFactory>
     }
 
     [Fact]
-    public async Task Delete_OtherUsersTransaction_Returns401()
+    public async Task Delete_OtherUsersTransaction_Returns403()
     {
         HttpClient owner = await TestHelpers.CreateAuthenticatedClientAsync(_factory, "tx_del_owner");
         HttpClient intruder = await TestHelpers.CreateAuthenticatedClientAsync(_factory, "tx_del_intruder");
@@ -218,7 +218,7 @@ public class TransactionsIntegrationTests : IClassFixture<FinanceApiFactory>
 
         HttpResponseMessage deleteResp = await intruder.DeleteAsync($"/api/transactions/{created!.Id}");
 
-        Assert.Equal(HttpStatusCode.Unauthorized, deleteResp.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, deleteResp.StatusCode);
     }
 
     [Fact]

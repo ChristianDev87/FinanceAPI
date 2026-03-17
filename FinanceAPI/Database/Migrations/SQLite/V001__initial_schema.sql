@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS Users (
     Email        TEXT NOT NULL UNIQUE COLLATE NOCASE,
     PasswordHash TEXT NOT NULL,
     RoleName     TEXT NOT NULL DEFAULT 'User' REFERENCES Roles(Name),
+    IsActive     INTEGER NOT NULL DEFAULT 1,
     CreatedAt    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -49,8 +50,8 @@ CREATE INDEX IF NOT EXISTS idx_transactions_user_date ON Transactions(UserId, Da
 CREATE INDEX IF NOT EXISTS idx_categories_user        ON Categories(UserId);
 CREATE INDEX IF NOT EXISTS idx_apikeys_hash           ON ApiKeys(KeyHash);
 
--- Migration: add IsActive column to Users (ignored if already exists)
+-- Idempotent migration: add IsActive column to Users (skipped if already exists)
 ALTER TABLE Users ADD COLUMN IsActive INTEGER NOT NULL DEFAULT 1;
 
--- Migration: enforce case-insensitive uniqueness for category names (ignored if already exists)
+-- Idempotent migration: case-insensitive uniqueness index for category names per user
 CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_user_name_nocase ON Categories (UserId, Name COLLATE NOCASE);

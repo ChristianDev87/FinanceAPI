@@ -222,7 +222,7 @@ public class CategoriesIntegrationTests : IClassFixture<FinanceApiFactory>
     }
 
     [Fact]
-    public async Task Delete_OtherUsersCategory_Returns401()
+    public async Task Delete_OtherUsersCategory_Returns403()
     {
         HttpClient owner = await TestHelpers.CreateAuthenticatedClientAsync(_factory, "cat_owner");
         HttpClient intruder = await TestHelpers.CreateAuthenticatedClientAsync(_factory, "cat_intruder");
@@ -241,6 +241,6 @@ public class CategoriesIntegrationTests : IClassFixture<FinanceApiFactory>
         // Intruder tries to delete it
         HttpResponseMessage deleteResp = await intruder.DeleteAsync($"/api/categories/{cat!.Id}");
 
-        Assert.Equal(HttpStatusCode.Unauthorized, deleteResp.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, deleteResp.StatusCode);
     }
 }

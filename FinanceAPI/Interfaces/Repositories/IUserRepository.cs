@@ -17,4 +17,13 @@ public interface IUserRepository
     Task SetActiveAsync(int id, bool isActive, CancellationToken cancellationToken = default);
     Task DeleteAsync(int id, CancellationToken cancellationToken = default);
     Task<int> CountActiveAdminsAsync(CancellationToken cancellationToken = default);
+
+    // Transactional overloads — used inside Serializable transactions for atomic admin-invariant checks
+    Task<User?> GetByUsernameAsync(string username, IDbConnection conn, IDbTransaction txn);
+    Task<User?> GetByEmailAsync(string email, IDbConnection conn, IDbTransaction txn);
+    Task<bool> AnyAsync(IDbConnection conn, IDbTransaction txn);
+    Task<int> CountActiveAdminsAsync(IDbConnection conn, IDbTransaction txn);
+    Task UpdateAsync(User user, IDbConnection conn, IDbTransaction txn);
+    Task DeleteAsync(int id, IDbConnection conn, IDbTransaction txn);
+    Task SetActiveAsync(int id, bool isActive, IDbConnection conn, IDbTransaction txn);
 }

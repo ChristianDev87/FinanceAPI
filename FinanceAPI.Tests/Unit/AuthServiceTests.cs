@@ -5,6 +5,7 @@ using FinanceAPI.Interfaces.Repositories;
 using FinanceAPI.Models;
 using FinanceAPI.Services;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
 namespace FinanceAPI.Tests.Unit;
@@ -34,10 +35,11 @@ public class AuthServiceTests
             { "JwtSettings:ExpirationHours", "1" },
         };
         IConfigurationRoot config = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
-        _sut = new AuthService(_userRepo.Object, _categoryRepo.Object, config, _connFactory.Object);
+        _sut = new AuthService(_userRepo.Object, _categoryRepo.Object, config, _connFactory.Object, NullLogger<AuthService>.Instance);
 
         // Default: at least one existing user so new registrations receive "User" role
-        _userRepo.Setup(r => r.AnyAsync()).ReturnsAsync(true);
+        _userRepo.Setup(r => r.AnyAsync(It.IsAny<IDbConnection>(), It.IsAny<IDbTransaction>()))
+                 .ReturnsAsync(true);
     }
 
     // ── Register ──────────────────────────────────────────────────
@@ -45,9 +47,12 @@ public class AuthServiceTests
     [Fact]
     public async Task RegisterAsync_NewUser_ReturnsTokenAndUserInfo()
     {
-        _userRepo.Setup(r => r.GetByUsernameAsync("alice")).ReturnsAsync((User?)null);
-        _userRepo.Setup(r => r.GetByEmailAsync("alice@test.com")).ReturnsAsync((User?)null);
-        _userRepo.Setup(r => r.CreateAsync(It.IsAny<User>(), It.IsAny<IDbConnection>(), It.IsAny<IDbTransaction>())).ReturnsAsync(1);
+        _userRepo.Setup(r => r.GetByUsernameAsync("alice", It.IsAny<IDbConnection>(), It.IsAny<IDbTransaction>()))
+                 .ReturnsAsync((User?)null);
+        _userRepo.Setup(r => r.GetByEmailAsync("alice@test.com", It.IsAny<IDbConnection>(), It.IsAny<IDbTransaction>()))
+                 .ReturnsAsync((User?)null);
+        _userRepo.Setup(r => r.CreateAsync(It.IsAny<User>(), It.IsAny<IDbConnection>(), It.IsAny<IDbTransaction>()))
+                 .ReturnsAsync(1);
 
         AuthResponse result = await _sut.RegisterAsync(new RegisterRequest
         {
@@ -65,9 +70,12 @@ public class AuthServiceTests
     [Fact]
     public async Task RegisterAsync_DefaultCategoriesCreated_CallsCategoryCreateForEachDefault()
     {
-        _userRepo.Setup(r => r.GetByUsernameAsync(It.IsAny<string>())).ReturnsAsync((User?)null);
-        _userRepo.Setup(r => r.GetByEmailAsync(It.IsAny<string>())).ReturnsAsync((User?)null);
-        _userRepo.Setup(r => r.CreateAsync(It.IsAny<User>(), It.IsAny<IDbConnection>(), It.IsAny<IDbTransaction>())).ReturnsAsync(42);
+        _userRepo.Setup(r => r.GetByUsernameAsync(It.IsAny<string>(), It.IsAny<IDbConnection>(), It.IsAny<IDbTransaction>()))
+                 .ReturnsAsync((User?)null);
+        _userRepo.Setup(r => r.GetByEmailAsync(It.IsAny<string>(), It.IsAny<IDbConnection>(), It.IsAny<IDbTransaction>()))
+                 .ReturnsAsync((User?)null);
+        _userRepo.Setup(r => r.CreateAsync(It.IsAny<User>(), It.IsAny<IDbConnection>(), It.IsAny<IDbTransaction>()))
+                 .ReturnsAsync(42);
 
         // Config with 2 default categories
         Dictionary<string, string?> settings = new Dictionary<string, string?>
@@ -84,7 +92,7 @@ public class AuthServiceTests
             { "DefaultCategories:1:Color",    "#e74a3b" },
         };
         IConfigurationRoot config = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
-        AuthService sut = new AuthService(_userRepo.Object, _categoryRepo.Object, config, _connFactory.Object);
+        AuthService sut = new AuthService(_userRepo.Object, _categoryRepo.Object, config, _connFactory.Object, NullLogger<AuthService>.Instance);
 
         await sut.RegisterAsync(new RegisterRequest { Username = "bob", Email = "bob@test.com", Password = "pass" });
 
@@ -94,7 +102,7 @@ public class AuthServiceTests
     [Fact]
     public async Task RegisterAsync_DuplicateUsername_ThrowsArgumentException()
     {
-        _userRepo.Setup(r => r.GetByUsernameAsync("alice"))
+        _userRepo.Setup(r => r.GetByUsernameAsync("alice", It.IsAny<IDbConnection>(), It.IsAny<IDbTransaction>()))
                  .ReturnsAsync(new User { Id = 1, Username = "alice" });
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
@@ -109,8 +117,9 @@ public class AuthServiceTests
     [Fact]
     public async Task RegisterAsync_DuplicateEmail_ThrowsArgumentException()
     {
-        _userRepo.Setup(r => r.GetByUsernameAsync("alice")).ReturnsAsync((User?)null);
-        _userRepo.Setup(r => r.GetByEmailAsync("alice@test.com"))
+        _userRepo.Setup(r => r.GetByUsernameAsync("alice", It.IsAny<IDbConnection>(), It.IsAny<IDbTransaction>()))
+                 .ReturnsAsync((User?)null);
+        _userRepo.Setup(r => r.GetByEmailAsync("alice@test.com", It.IsAny<IDbConnection>(), It.IsAny<IDbTransaction>()))
                  .ReturnsAsync(new User { Id = 2, Email = "alice@test.com" });
 
         await Assert.ThrowsAsync<ArgumentException>(() =>

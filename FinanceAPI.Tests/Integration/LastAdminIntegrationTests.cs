@@ -161,12 +161,15 @@ public class LastAdminIntegrationTests : IClassFixture<FinanceApiFactory>
             User? admin1 = await userRepo.GetByUsernameAsync("p2_conc1");
 
             // Both admins attempt to deactivate each other at the same time
-            Task<HttpResponseMessage> req1 = admin1Client.PutAsJsonAsync($"/api/users/{admin2.Id}/active", false);
-            Task<HttpResponseMessage> req2 = admin2Client.PutAsJsonAsync($"/api/users/{admin1!.Id}/active", false);
+            Task<HttpResponseMessage> req1 = admin1Client.PutAsJsonAsync($"/api/users/{admin2.Id}/active", new { isActive = false });
+            Task<HttpResponseMessage> req2 = admin2Client.PutAsJsonAsync($"/api/users/{admin1!.Id}/active", new { isActive = false });
 
             HttpResponseMessage[] results = await Task.WhenAll(req1, req2);
 
-            // At most one deactivation can succeed; the other must be rejected for any reason
+            // At most one deactivation can succeed; the other must be rejected.
+            // The Serializable DB transaction serialises concurrent admin-guard checks across all
+            // application instances, so one request will either fail with 400 (last admin) or
+            // 401 (account just deactivated by the competing request).
             int successCount = results.Count(r => r.IsSuccessStatusCode);
             Assert.True(successCount <= 1, $"Both concurrent deactivations succeeded — the last-admin invariant may be broken.");
 

@@ -11,6 +11,6 @@ public class PostgreSqlDialect : ISqlDialect
     public string CaseInsensitiveEqual(string column, string paramName)
         => $"LOWER({column}) = LOWER({paramName})";
 
-    public Task<int> InsertAsync(IDbConnection conn, string sql, object param, IDbTransaction? transaction = null)
-        => conn.QuerySingleAsync<int>(sql + " RETURNING Id", param, transaction: transaction);
+    public Task<int> InsertAsync(IDbConnection conn, string sql, object param, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
+        => conn.QuerySingleAsync<int>(new CommandDefinition(sql + " RETURNING Id", param, transaction: transaction, cancellationToken: cancellationToken));
 }

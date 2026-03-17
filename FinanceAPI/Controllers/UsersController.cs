@@ -50,14 +50,14 @@ public class UsersController : AuthenticatedControllerBase
 
     // PUT /api/users/{userId}/active
     [HttpPut("{userId:int}/active")]
-    public async Task<IActionResult> SetActive(int userId, [FromBody] bool isActive, CancellationToken cancellationToken)
+    public async Task<IActionResult> SetActive(int userId, [FromBody] SetActiveRequest request, CancellationToken cancellationToken)
     {
         if (userId == UserId)
         {
             throw new InvalidOperationException("You cannot deactivate your own account.");
         }
 
-        await _userService.SetActiveAsync(userId, isActive, cancellationToken);
+        await _userService.SetActiveAsync(userId, request.IsActive, cancellationToken);
         return NoContent();
     }
 

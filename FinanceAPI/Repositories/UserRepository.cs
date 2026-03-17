@@ -71,7 +71,7 @@ public class UserRepository : IUserRepository
         using IDbConnection conn = _connectionFactory.CreateConnection();
         return await _dialect.InsertAsync(conn,
             "INSERT INTO Users (Username, Email, PasswordHash, RoleName) VALUES (@Username, @Email, @PasswordHash, @RoleName)",
-            user);
+            user, cancellationToken: cancellationToken);
     }
 
     public Task<int> CreateAsync(User user, IDbConnection conn, IDbTransaction txn)
@@ -128,4 +128,50 @@ public class UserRepository : IUserRepository
                 new { RoleName = UserRoles.Admin, IsActive = true },
                 cancellationToken: cancellationToken));
     }
+
+    // ── Transactional overloads ──────────────────────────────────
+
+    public Task<User?> GetByUsernameAsync(string username, IDbConnection conn, IDbTransaction txn)
+        => conn.QuerySingleOrDefaultAsync<User>(
+            $"SELECT * FROM Users WHERE {_dialect.CaseInsensitiveEqual("Username", "@Username")}",
+            new { Username = username },
+            transaction: txn);
+
+    public Task<User?> GetByEmailAsync(string email, IDbConnection conn, IDbTransaction txn)
+        => conn.QuerySingleOrDefaultAsync<User>(
+            $"SELECT * FROM Users WHERE {_dialect.CaseInsensitiveEqual("Email", "@Email")}",
+            new { Email = email },
+            transaction: txn);
+
+    public async Task<bool> AnyAsync(IDbConnection conn, IDbTransaction txn)
+    {
+        int count = await conn.ExecuteScalarAsync<int>(
+            "SELECT COUNT(1) FROM Users",
+            transaction: txn);
+        return count > 0;
+    }
+
+    public Task<int> CountActiveAdminsAsync(IDbConnection conn, IDbTransaction txn)
+        => conn.ExecuteScalarAsync<int>(
+            "SELECT COUNT(1) FROM Users WHERE RoleName = @RoleName AND IsActive = @IsActive",
+            new { RoleName = UserRoles.Admin, IsActive = true },
+            transaction: txn);
+
+    public Task UpdateAsync(User user, IDbConnection conn, IDbTransaction txn)
+        => conn.ExecuteAsync(
+            "UPDATE Users SET Username = @Username, Email = @Email, RoleName = @RoleName WHERE Id = @Id",
+            user,
+            transaction: txn);
+
+    public Task DeleteAsync(int id, IDbConnection conn, IDbTransaction txn)
+        => conn.ExecuteAsync(
+            "DELETE FROM Users WHERE Id = @Id",
+            new { Id = id },
+            transaction: txn);
+
+    public Task SetActiveAsync(int id, bool isActive, IDbConnection conn, IDbTransaction txn)
+        => conn.ExecuteAsync(
+            "UPDATE Users SET IsActive = @IsActive WHERE Id = @Id",
+            new { Id = id, IsActive = isActive },
+            transaction: txn);
 }
