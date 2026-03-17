@@ -1,0 +1,21 @@
+name: Build
+
+on:
+  push:
+    branches: [ develop ]
+
+permissions: {}
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build:
+    runs-on: [ self-hosted, linux, dotnet10 ]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Restore
+        run: dotnet restore
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
