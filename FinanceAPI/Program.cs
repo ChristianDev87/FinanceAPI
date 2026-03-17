@@ -256,7 +256,7 @@ builder.Services.AddAuthorization();
 
 // ── Forwarded Headers (Reverse Proxy support) ────────────────────
 // When Enabled, X-Forwarded-For is trusted from the listed proxy IPs only.
-// Clearing KnownNetworks/KnownProxies prevents header spoofing from untrusted sources.
+// Clearing KnownIPNetworks/KnownProxies prevents header spoofing from untrusted sources.
 IConfigurationSection fh = builder.Configuration.GetSection("ForwardedHeadersSettings");
 bool forwardedHeadersEnabled = fh.GetValue("Enabled", false);
 if (forwardedHeadersEnabled)
@@ -266,7 +266,7 @@ if (forwardedHeadersEnabled)
     builder.Services.Configure<ForwardedHeadersOptions>(options =>
     {
         options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-        options.KnownNetworks.Clear();
+        options.KnownIPNetworks.Clear();
         options.KnownProxies.Clear();
         // ForwardLimit = 0 means unlimited (all hops); positive values cap the
         // number of processed X-Forwarded-For hops. Default is 1 (single proxy).
