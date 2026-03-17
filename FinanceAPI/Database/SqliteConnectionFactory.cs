@@ -16,6 +16,9 @@ public class SqliteConnectionFactory : IDbConnectionFactory
     {
         SqliteConnection connection = new SqliteConnection(_connectionString);
         connection.Open();
+        using SqliteCommand cmd = connection.CreateCommand();
+        cmd.CommandText = "PRAGMA foreign_keys = ON";
+        cmd.ExecuteNonQuery();
         return connection;
     }
 }

@@ -54,11 +54,12 @@ internal static class DbTransactionHelper
 
     /// <summary>
     /// Returns true for transient concurrency errors that are safe to retry:
-    /// PostgreSQL serialization failure (40001), MySQL deadlock / lock timeout,
-    /// SQLite busy (5) or locked (6).
+    /// PostgreSQL serialization failure (40001) or deadlock (40P01),
+    /// MySQL deadlock / lock timeout, SQLite busy (5) or locked (6).
     /// </summary>
     private static bool IsRetryable(Exception ex) =>
-        (ex is Npgsql.PostgresException pg && pg.SqlState == "40001") ||
+        (ex is Npgsql.PostgresException pg &&
+            (pg.SqlState == "40001" || pg.SqlState == "40P01")) ||
         (ex is MySqlConnector.MySqlException my &&
             my.ErrorCode is MySqlConnector.MySqlErrorCode.LockDeadlock
                          or MySqlConnector.MySqlErrorCode.LockWaitTimeout) ||
