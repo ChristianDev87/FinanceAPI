@@ -31,16 +31,7 @@ public class ProfileController : AuthenticatedControllerBase
     [HttpPut]
     public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequest request, CancellationToken cancellationToken)
     {
-        UserDto current = await _userService.GetByIdAsync(UserId, cancellationToken);
-
-        UpdateUserRequest updateRequest = new UpdateUserRequest
-        {
-            Username = request.Username,
-            Email = request.Email,
-            Role = current.Role   // role cannot be changed via profile
-        };
-
-        UserDto dto = await _userService.UpdateAsync(UserId, updateRequest, cancellationToken: cancellationToken);
+        UserDto dto = await _userService.UpdateProfileAsync(UserId, request.Username, request.Email, cancellationToken);
         return Ok(dto);
     }
 

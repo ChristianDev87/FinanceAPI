@@ -61,6 +61,10 @@ public class CategoryService : ICategoryService
             }
         }
 
+        // Note: the type-change check and the subsequent write are not atomic. A concurrent
+        // transaction insert on this category between this check and the update could create
+        // a type mismatch. For a single-user personal finance app this race is acceptable;
+        // enforce atomically at the DB layer if stricter guarantees are required.
         if (!string.Equals(category.Type, request.Type, StringComparison.OrdinalIgnoreCase)
             && await _categoryRepo.HasTransactionsAsync(categoryId, cancellationToken))
         {

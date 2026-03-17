@@ -16,16 +16,16 @@ public class UserServiceTests
     private readonly Mock<IUserRepository> _userRepo = new();
     private readonly Mock<IApiKeyRepository> _apiKeyRepo = new();
     private readonly Mock<IDbConnectionFactory> _connFactory = new();
+    private readonly Mock<IDbTransaction> _txn = new();
+    private readonly Mock<IDbConnection> _conn = new();
     private readonly UserService _sut;
 
     public UserServiceTests()
     {
-        Mock<IDbTransaction> txn = new Mock<IDbTransaction>();
-        Mock<IDbConnection> conn = new Mock<IDbConnection>();
-        conn.Setup(c => c.BeginTransaction()).Returns(txn.Object);
-        conn.Setup(c => c.BeginTransaction(It.IsAny<IsolationLevel>())).Returns(txn.Object);
-        conn.SetupGet(c => c.State).Returns(ConnectionState.Open);
-        _connFactory.Setup(f => f.CreateConnection()).Returns(conn.Object);
+        _conn.Setup(c => c.BeginTransaction()).Returns(_txn.Object);
+        _conn.Setup(c => c.BeginTransaction(It.IsAny<IsolationLevel>())).Returns(_txn.Object);
+        _conn.SetupGet(c => c.State).Returns(ConnectionState.Open);
+        _connFactory.Setup(f => f.CreateConnection()).Returns(_conn.Object);
 
         _sut = new UserService(_userRepo.Object, _apiKeyRepo.Object, _connFactory.Object, NullLogger<UserService>.Instance);
     }
@@ -84,8 +84,9 @@ public class UserServiceTests
     public async Task UpdateAsync_ValidRequest_ReturnsUpdatedDto()
     {
         _userRepo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(MakeUser(1));
-        _userRepo.Setup(r => r.GetByUsernameAsync("alice")).ReturnsAsync(MakeUser(1));   // same user
+        _userRepo.Setup(r => r.GetByUsernameAsync("alice")).ReturnsAsync(MakeUser(1));
         _userRepo.Setup(r => r.GetByEmailAsync("alice@test.com")).ReturnsAsync(MakeUser(1));
+        _userRepo.Setup(r => r.GetByIdAsync(1, _conn.Object, _txn.Object)).ReturnsAsync(MakeUser(1));
 
         UserDto result = await _sut.UpdateAsync(1, new UpdateUserRequest
         {
@@ -95,7 +96,7 @@ public class UserServiceTests
         });
 
         Assert.Equal("alice", result.Username);
-        _userRepo.Verify(r => r.UpdateAsync(It.IsAny<User>()), Times.Once);
+        _userRepo.Verify(r => r.UpdateAsync(It.IsAny<User>(), _conn.Object, _txn.Object), Times.Once);
     }
 
     [Fact]
@@ -149,12 +150,13 @@ public class UserServiceTests
         _userRepo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(inactiveAdmin);
         _userRepo.Setup(r => r.GetByUsernameAsync("alice")).ReturnsAsync(inactiveAdmin);
         _userRepo.Setup(r => r.GetByEmailAsync("alice@test.com")).ReturnsAsync(inactiveAdmin);
+        _userRepo.Setup(r => r.GetByIdAsync(1, _conn.Object, _txn.Object)).ReturnsAsync(inactiveAdmin);
 
         // Demoting an already-inactive admin must not query the admin count
         await _sut.UpdateAsync(1, new UpdateUserRequest { Username = "alice", Email = "alice@test.com", Role = "User" }, allowRoleChange: true);
 
-        _userRepo.Verify(r => r.CountActiveAdminsAsync(), Times.Never);
-        _userRepo.Verify(r => r.UpdateAsync(It.IsAny<User>()), Times.Once);
+        _userRepo.Verify(r => r.CountActiveAdminsAsync(_conn.Object, _txn.Object), Times.Never);
+        _userRepo.Verify(r => r.UpdateAsync(It.IsAny<User>(), _conn.Object, _txn.Object), Times.Once);
     }
 
     [Fact]
@@ -166,12 +168,13 @@ public class UserServiceTests
             PasswordHash = "hash", RoleName = "Admin", IsActive = false
         };
         _userRepo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(inactiveAdmin);
+        _userRepo.Setup(r => r.GetByIdAsync(1, _conn.Object, _txn.Object)).ReturnsAsync(inactiveAdmin);
 
         // Setting an already-inactive admin to false again must not query the admin count
         await _sut.SetActiveAsync(1, false);
 
-        _userRepo.Verify(r => r.CountActiveAdminsAsync(), Times.Never);
-        _userRepo.Verify(r => r.SetActiveAsync(1, false), Times.Once);
+        _userRepo.Verify(r => r.CountActiveAdminsAsync(_conn.Object, _txn.Object), Times.Never);
+        _userRepo.Verify(r => r.SetActiveAsync(1, false, _conn.Object, _txn.Object), Times.Once);
     }
 
     // ── Delete ────────────────────────────────────────────────────
@@ -180,10 +183,11 @@ public class UserServiceTests
     public async Task DeleteAsync_ExistingUser_Deletes()
     {
         _userRepo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(MakeUser(1));
+        _userRepo.Setup(r => r.GetByIdAsync(1, _conn.Object, _txn.Object)).ReturnsAsync(MakeUser(1));
 
         await _sut.DeleteAsync(1);
 
-        _userRepo.Verify(r => r.DeleteAsync(1), Times.Once);
+        _userRepo.Verify(r => r.DeleteAsync(1, _conn.Object, _txn.Object), Times.Once);
     }
 
     [Fact]
@@ -200,10 +204,11 @@ public class UserServiceTests
     public async Task SetActiveAsync_ExistingUser_CallsRepository()
     {
         _userRepo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(MakeUser(1));
+        _userRepo.Setup(r => r.GetByIdAsync(1, _conn.Object, _txn.Object)).ReturnsAsync(MakeUser(1));
 
         await _sut.SetActiveAsync(1, false);
 
-        _userRepo.Verify(r => r.SetActiveAsync(1, false), Times.Once);
+        _userRepo.Verify(r => r.SetActiveAsync(1, false, _conn.Object, _txn.Object), Times.Once);
     }
 
     [Fact]
@@ -212,6 +217,39 @@ public class UserServiceTests
         _userRepo.Setup(r => r.GetByIdAsync(99)).ReturnsAsync((User?)null);
 
         await Assert.ThrowsAsync<NotFoundException>(() => _sut.SetActiveAsync(99, false));
+    }
+
+    // ── UpdateProfile ─────────────────────────────────────────────
+
+    [Fact]
+    public async Task UpdateProfileAsync_ValidRequest_UpdatesUsernameAndEmail()
+    {
+        _userRepo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(MakeUser(1));
+        _userRepo.Setup(r => r.GetByUsernameAsync("alice_new")).ReturnsAsync((User?)null);
+        _userRepo.Setup(r => r.GetByEmailAsync("alice_new@test.com")).ReturnsAsync((User?)null);
+
+        UserDto result = await _sut.UpdateProfileAsync(1, "alice_new", "alice_new@test.com");
+
+        Assert.Equal("alice_new", result.Username);
+        Assert.Equal("alice_new@test.com", result.Email);
+        _userRepo.Verify(r => r.UpdateUsernameEmailAsync(1, "alice_new", "alice_new@test.com", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateProfileAsync_NotFound_ThrowsNotFoundException()
+    {
+        _userRepo.Setup(r => r.GetByIdAsync(99)).ReturnsAsync((User?)null);
+
+        await Assert.ThrowsAsync<NotFoundException>(() => _sut.UpdateProfileAsync(99, "x", "x@x.com"));
+    }
+
+    [Fact]
+    public async Task UpdateProfileAsync_UsernameTaken_ThrowsArgumentException()
+    {
+        _userRepo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(MakeUser(1));
+        _userRepo.Setup(r => r.GetByUsernameAsync("bob")).ReturnsAsync(MakeUser(2, "bob"));
+
+        await Assert.ThrowsAsync<ArgumentException>(() => _sut.UpdateProfileAsync(1, "bob", "alice@test.com"));
     }
 
     // ── ChangePassword ────────────────────────────────────────────

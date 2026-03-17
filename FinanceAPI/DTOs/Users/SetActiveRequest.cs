@@ -1,6 +1,9 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace FinanceAPI.DTOs.Users;
 
 public class SetActiveRequest
 {
-    public bool IsActive { get; set; }
+    [Required]
+    public bool? IsActive { get; set; }
 }

@@ -216,10 +216,27 @@ public class DatabaseInitializer
 
                 return false;
 
-            default: // SQLite
-                return statement.Contains("ADD COLUMN", StringComparison.OrdinalIgnoreCase)
-                    || statement.Contains("CREATE INDEX", StringComparison.OrdinalIgnoreCase)
-                    || statement.Contains("CREATE UNIQUE INDEX", StringComparison.OrdinalIgnoreCase);
+            default: // SQLite — only suppress errors that are provably idempotent
+                if (ex is not Microsoft.Data.Sqlite.SqliteException)
+                {
+                    return false;
+                }
+
+                string msg = ex.Message;
+                if (statement.Contains("ADD COLUMN", StringComparison.OrdinalIgnoreCase)
+                    && msg.Contains("duplicate column name", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
+                if ((statement.Contains("CREATE INDEX", StringComparison.OrdinalIgnoreCase)
+                     || statement.Contains("CREATE UNIQUE INDEX", StringComparison.OrdinalIgnoreCase))
+                    && msg.Contains("already exists", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
+                return false;
         }
     }
 }

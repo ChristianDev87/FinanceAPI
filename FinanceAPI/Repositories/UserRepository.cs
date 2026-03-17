@@ -131,6 +131,12 @@ public class UserRepository : IUserRepository
 
     // ── Transactional overloads ──────────────────────────────────
 
+    public Task<User?> GetByIdAsync(int id, IDbConnection conn, IDbTransaction txn)
+        => conn.QuerySingleOrDefaultAsync<User>(
+            "SELECT * FROM Users WHERE Id = @Id",
+            new { Id = id },
+            transaction: txn);
+
     public Task<User?> GetByUsernameAsync(string username, IDbConnection conn, IDbTransaction txn)
         => conn.QuerySingleOrDefaultAsync<User>(
             $"SELECT * FROM Users WHERE {_dialect.CaseInsensitiveEqual("Username", "@Username")}",
@@ -174,4 +180,14 @@ public class UserRepository : IUserRepository
             "UPDATE Users SET IsActive = @IsActive WHERE Id = @Id",
             new { Id = id, IsActive = isActive },
             transaction: txn);
+
+    public async Task UpdateUsernameEmailAsync(int id, string username, string email, CancellationToken cancellationToken = default)
+    {
+        using IDbConnection conn = _connectionFactory.CreateConnection();
+        await conn.ExecuteAsync(
+            new CommandDefinition(
+                "UPDATE Users SET Username = @Username, Email = @Email WHERE Id = @Id",
+                new { Id = id, Username = username, Email = email },
+                cancellationToken: cancellationToken));
+    }
 }

@@ -41,9 +41,10 @@ public class UserService : IUserService
 
     public async Task<UserDto> UpdateAsync(int id, UpdateUserRequest request, bool allowRoleChange = false, CancellationToken cancellationToken = default)
     {
-        User user = await _userRepo.GetByIdAsync(id, cancellationToken)
-                   ?? throw new NotFoundException($"User {id} not found.");
+        _ = await _userRepo.GetByIdAsync(id, cancellationToken)
+            ?? throw new NotFoundException($"User {id} not found.");
 
+        // Best-effort uniqueness check before opening the transaction
         User? existing = await _userRepo.GetByUsernameAsync(request.Username, cancellationToken);
         if (existing is not null && existing.Id != id)
         {
@@ -56,112 +57,144 @@ public class UserService : IUserService
             throw new ArgumentException("Email already in use.");
         }
 
-        // Demoting an active admin requires an atomic check that another active admin remains.
-        // The Serializable transaction prevents a concurrent request from racing past this guard.
-        if (allowRoleChange && user.RoleName == UserRoles.Admin && user.IsActive && request.Role != UserRoles.Admin)
+        // Re-read the user inside a Serializable transaction so the guard decision
+        // (is this user still an active admin?) is based on authoritative DB state,
+        // not a potentially stale pre-read.
+        User result = null!;
+        using IDbConnection conn = _connectionFactory.CreateConnection();
+        if (conn.State != ConnectionState.Open)
         {
-            using IDbConnection conn = _connectionFactory.CreateConnection();
-            if (conn.State != ConnectionState.Open)
-            {
-                conn.Open();
-            }
+            conn.Open();
+        }
 
-            await DbTransactionHelper.ExecuteInSerializableTransactionAsync(conn, async txn =>
+        await DbTransactionHelper.ExecuteInSerializableTransactionAsync(conn, async txn =>
+        {
+            User? user = await _userRepo.GetByIdAsync(id, conn, txn)
+                        ?? throw new NotFoundException($"User {id} not found.");
+
+            if (allowRoleChange && user.RoleName == UserRoles.Admin && user.IsActive && request.Role != UserRoles.Admin)
             {
                 int activeAdmins = await _userRepo.CountActiveAdminsAsync(conn, txn);
                 if (activeAdmins <= 1)
                 {
                     throw new InvalidOperationException("Cannot demote the last active admin.");
                 }
+            }
 
-                string oldRole = user.RoleName;
-                user.Username = request.Username;
-                user.Email = request.Email;
-                user.RoleName = request.Role;
-                await _userRepo.UpdateAsync(user, conn, txn);
-                _logger.LogInformation("User {UserId} role changed from {OldRole} to {NewRole}.", id, oldRole, request.Role);
-            }, cancellationToken);
+            string oldRole = user.RoleName;
+            user.Username = request.Username;
+            user.Email = request.Email;
+            user.RoleName = allowRoleChange ? request.Role : user.RoleName;
+            await _userRepo.UpdateAsync(user, conn, txn);
 
-            return MapToDto(user);
-        }
+            if (allowRoleChange && oldRole != user.RoleName)
+            {
+                _logger.LogInformation("User {UserId} role changed from {OldRole} to {NewRole}.", id, oldRole, user.RoleName);
+            }
 
-        string previousRole = user.RoleName;
-        user.Username = request.Username;
-        user.Email = request.Email;
-        user.RoleName = allowRoleChange ? request.Role : user.RoleName;
+            result = user;
+        }, cancellationToken);
 
-        await _userRepo.UpdateAsync(user, cancellationToken);
+        return MapToDto(result);
+    }
 
-        if (allowRoleChange && previousRole != user.RoleName)
+    public async Task<UserDto> UpdateProfileAsync(int userId, string username, string email, CancellationToken cancellationToken = default)
+    {
+        User user = await _userRepo.GetByIdAsync(userId, cancellationToken)
+                   ?? throw new NotFoundException($"User {userId} not found.");
+
+        User? existing = await _userRepo.GetByUsernameAsync(username, cancellationToken);
+        if (existing is not null && existing.Id != userId)
         {
-            _logger.LogInformation("User {UserId} role changed from {OldRole} to {NewRole}.", id, previousRole, user.RoleName);
+            throw new ArgumentException("Username already taken.");
         }
 
+        User? existingEmail = await _userRepo.GetByEmailAsync(email, cancellationToken);
+        if (existingEmail is not null && existingEmail.Id != userId)
+        {
+            throw new ArgumentException("Email already in use.");
+        }
+
+        await _userRepo.UpdateUsernameEmailAsync(userId, username, email, cancellationToken);
+        user.Username = username;
+        user.Email = email;
         return MapToDto(user);
     }
 
     public async Task DeleteAsync(int id, CancellationToken cancellationToken = default)
     {
-        User user = await _userRepo.GetByIdAsync(id, cancellationToken)
-                   ?? throw new NotFoundException($"User {id} not found.");
+        _ = await _userRepo.GetByIdAsync(id, cancellationToken)
+            ?? throw new NotFoundException($"User {id} not found.");
 
-        if (user.RoleName == UserRoles.Admin && user.IsActive)
+        // Re-read inside the Serializable transaction so the guard decision is based
+        // on authoritative DB state — the pre-read only guarantees the user existed.
+        string username = string.Empty;
+        using IDbConnection conn = _connectionFactory.CreateConnection();
+        if (conn.State != ConnectionState.Open)
         {
-            using IDbConnection conn = _connectionFactory.CreateConnection();
-            if (conn.State != ConnectionState.Open)
+            conn.Open();
+        }
+
+        await DbTransactionHelper.ExecuteInSerializableTransactionAsync(conn, async txn =>
+        {
+            User? user = await _userRepo.GetByIdAsync(id, conn, txn);
+            if (user is null)
             {
-                conn.Open();
+                return; // deleted concurrently
             }
 
-            await DbTransactionHelper.ExecuteInSerializableTransactionAsync(conn, async txn =>
+            if (user.RoleName == UserRoles.Admin && user.IsActive)
             {
                 int activeAdmins = await _userRepo.CountActiveAdminsAsync(conn, txn);
                 if (activeAdmins <= 1)
                 {
                     throw new InvalidOperationException("Cannot delete the last active admin.");
                 }
+            }
 
-                await _userRepo.DeleteAsync(user.Id, conn, txn);
-            }, cancellationToken);
+            username = user.Username;
+            await _userRepo.DeleteAsync(id, conn, txn);
+        }, cancellationToken);
 
-            _logger.LogInformation("User {UserId} ({Username}) deleted.", id, user.Username);
-            return;
-        }
-
-        await _userRepo.DeleteAsync(id, cancellationToken);
-        _logger.LogInformation("User {UserId} ({Username}) deleted.", id, user.Username);
+        _logger.LogInformation("User {UserId} ({Username}) deleted.", id, username);
     }
 
     public async Task SetActiveAsync(int id, bool isActive, CancellationToken cancellationToken = default)
     {
-        User user = await _userRepo.GetByIdAsync(id, cancellationToken)
+        _ = await _userRepo.GetByIdAsync(id, cancellationToken)
             ?? throw new NotFoundException($"User {id} not found.");
 
-        if (!isActive && user.RoleName == UserRoles.Admin && user.IsActive)
+        // Re-read inside the Serializable transaction so the guard decision is based
+        // on authoritative DB state — the pre-read only guarantees the user existed.
+        string username = string.Empty;
+        using IDbConnection conn = _connectionFactory.CreateConnection();
+        if (conn.State != ConnectionState.Open)
         {
-            using IDbConnection conn = _connectionFactory.CreateConnection();
-            if (conn.State != ConnectionState.Open)
+            conn.Open();
+        }
+
+        await DbTransactionHelper.ExecuteInSerializableTransactionAsync(conn, async txn =>
+        {
+            User? user = await _userRepo.GetByIdAsync(id, conn, txn);
+            if (user is null)
             {
-                conn.Open();
+                return; // deleted concurrently
             }
 
-            await DbTransactionHelper.ExecuteInSerializableTransactionAsync(conn, async txn =>
+            if (!isActive && user.RoleName == UserRoles.Admin && user.IsActive)
             {
                 int activeAdmins = await _userRepo.CountActiveAdminsAsync(conn, txn);
                 if (activeAdmins <= 1)
                 {
                     throw new InvalidOperationException("Cannot deactivate the last active admin.");
                 }
+            }
 
-                await _userRepo.SetActiveAsync(id, isActive, conn, txn);
-            }, cancellationToken);
+            username = user.Username;
+            await _userRepo.SetActiveAsync(id, isActive, conn, txn);
+        }, cancellationToken);
 
-            _logger.LogInformation("User {UserId} ({Username}) set active={IsActive}.", id, user.Username, isActive);
-            return;
-        }
-
-        await _userRepo.SetActiveAsync(id, isActive, cancellationToken);
-        _logger.LogInformation("User {UserId} ({Username}) set active={IsActive}.", id, user.Username, isActive);
+        _logger.LogInformation("User {UserId} ({Username}) set active={IsActive}.", id, username, isActive);
     }
 
     public async Task<ApiKeyCreatedResponse> CreateApiKeyAsync(int userId, string keyName, int? createdByAdminId = null, CancellationToken cancellationToken = default)

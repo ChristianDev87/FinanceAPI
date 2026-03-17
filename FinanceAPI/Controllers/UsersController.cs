@@ -57,7 +57,7 @@ public class UsersController : AuthenticatedControllerBase
             throw new InvalidOperationException("You cannot deactivate your own account.");
         }
 
-        await _userService.SetActiveAsync(userId, request.IsActive, cancellationToken);
+        await _userService.SetActiveAsync(userId, request.IsActive!.Value, cancellationToken);
         return NoContent();
     }
 
