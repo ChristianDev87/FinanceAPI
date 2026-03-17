@@ -10,6 +10,7 @@ using FinanceAPI.Models;
 using FinanceAPI.Repositories;
 using FinanceAPI.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -247,20 +248,50 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
 
 builder.Services.AddAuthorization();
 
+// ── Forwarded Headers (Reverse Proxy support) ────────────────────
+// When Enabled, X-Forwarded-For is trusted from the listed proxy IPs only.
+// Clearing KnownNetworks/KnownProxies prevents header spoofing from untrusted sources.
+IConfigurationSection fh = builder.Configuration.GetSection("ForwardedHeadersSettings");
+bool forwardedHeadersEnabled = fh.GetValue("Enabled", false);
+if (forwardedHeadersEnabled)
+{
+    string[] trustedProxies = fh.GetSection("TrustedProxies").Get<string[]>() ?? Array.Empty<string>();
+    int forwardLimit = fh.GetValue("ForwardLimit", 1);
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+        options.KnownNetworks.Clear();
+        options.KnownProxies.Clear();
+        // ForwardLimit = 0 means unlimited (all hops); positive values cap the
+        // number of processed X-Forwarded-For hops. Default is 1 (single proxy).
+        options.ForwardLimit = forwardLimit == 0 ? null : forwardLimit;
+        foreach (string proxy in trustedProxies)
+        {
+            if (System.Net.IPAddress.TryParse(proxy, out System.Net.IPAddress? ip))
+            {
+                options.KnownProxies.Add(ip);
+            }
+        }
+    });
+}
+
 // ── Rate Limiting ────────────────────────────────────────────────
 builder.Services.AddRateLimiter(options =>
 {
     // Partition by client IP so one client cannot exhaust the limit for others.
-    bool isTesting = builder.Environment.IsEnvironment("Testing");
+    // Limits are read from RateLimitSettings in appsettings.json to allow
+    // environment-specific tuning without a code change or redeploy.
+    IConfigurationSection rl = builder.Configuration.GetSection("RateLimitSettings");
+    int permitLimit = rl.GetValue("AuthPermitLimit", 10);
+    int windowMinutes = rl.GetValue("AuthWindowMinutes", 1);
+
     options.AddPolicy("auth", httpContext =>
         RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                // Disable rate limiting in the test environment to prevent concurrent
-                // integration tests from hitting the 429 limit.
-                PermitLimit = isTesting ? int.MaxValue : 10,
-                Window = TimeSpan.FromMinutes(1),
+                PermitLimit = permitLimit,
+                Window = TimeSpan.FromMinutes(windowMinutes),
                 QueueLimit = 0
             }));
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -335,6 +366,10 @@ app.Use(async (context, next) =>
 });
 
 app.UseMiddleware<ErrorHandlingMiddleware>();
+if (forwardedHeadersEnabled)
+{
+    app.UseForwardedHeaders();
+}
 app.UseRateLimiter();
 
 bool swaggerEnabled = app.Environment.IsDevelopment()

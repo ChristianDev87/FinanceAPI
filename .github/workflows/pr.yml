@@ -46,6 +46,8 @@ jobs:
           JwtSettings__SecretKey: "ci-test-secret-key-minimum-32-chars!!"
           DatabaseSettings__Provider: postgresql
           ConnectionStrings__DefaultConnection: "Host=host-gateway;Port=5432;Database=financedb;Username=finance_user;Password=ci-test-password"
+          RateLimitSettings__AuthPermitLimit: "10"
+          RateLimitSettings__AuthWindowMinutes: "1"
       - name: Test Report (PostgreSQL)
         uses: EnricoMi/publish-unit-test-result-action/linux@v2
         if: always()
@@ -97,6 +99,8 @@ jobs:
           JwtSettings__SecretKey: "ci-test-secret-key-minimum-32-chars!!"
           DatabaseSettings__Provider: mysql
           ConnectionStrings__DefaultConnection: "Server=host-gateway;Port=3306;Database=financedb;User=finance_user;Password=ci-test-password"
+          RateLimitSettings__AuthPermitLimit: "10"
+          RateLimitSettings__AuthWindowMinutes: "1"
       - name: Test Report (MySQL)
         uses: EnricoMi/publish-unit-test-result-action/linux@v2
         if: always()
@@ -130,6 +134,8 @@ jobs:
           JwtSettings__SecretKey: "ci-test-secret-key-minimum-32-chars!!"
           DatabaseSettings__Provider: sqlite
           ConnectionStrings__DefaultConnection: "Data Source=ci-test.db"
+          RateLimitSettings__AuthPermitLimit: "10"
+          RateLimitSettings__AuthWindowMinutes: "1"
       - name: Test Report (SQLite)
         uses: EnricoMi/publish-unit-test-result-action/linux@v2
         if: always()

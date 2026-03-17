@@ -48,6 +48,8 @@ public sealed class FinanceApiFactory : WebApplicationFactory<Program>, IAsyncLi
                 { "DefaultCategories:0:Name",           "Gehalt" },
                 { "DefaultCategories:0:Type",           "income" },
                 { "DefaultCategories:0:Color",          "#1cc88a" },
+                // Disable rate limiting so parallel integration tests never hit 429
+                { "RateLimitSettings:AuthPermitLimit",  int.MaxValue.ToString() },
             });
         });
 

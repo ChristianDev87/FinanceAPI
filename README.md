@@ -26,10 +26,11 @@ A multi-user personal finance REST API built with .NET 10, Dapper and SQLite, Po
 
 ## Deployment Model
 
-Two operational invariants are enforced atomically via **Serializable database transactions** with retry logic:
+The following invariants are enforced atomically via **Serializable database transactions** with retry logic:
 
 - The first registered user is automatically assigned the `Admin` role.
 - At least one active `Admin` must exist at all times (demotion, deletion, and deactivation are all guarded).
+- At most one active API key exists per user at any time (enforced by a Serializable transaction on key creation; SQLite and PostgreSQL additionally enforce this at the schema level via a partial unique index).
 
 These checks are safe under **multi-instance deployments** (e.g. Kubernetes, multiple Docker containers behind a load balancer). Concurrent requests on different replicas are serialized by the database and retried automatically on transient conflicts.
 
@@ -72,9 +73,14 @@ https://localhost:7185/swagger
 | `JwtSettings.Issuer` | JWT issuer claim |
 | `JwtSettings.Audience` | JWT audience claim |
 | `JwtSettings.ExpirationHours` | Token lifetime in hours (default `24`) |
+| `ForwardedHeadersSettings.Enabled` | Set to `true` to trust `X-Forwarded-For` from listed proxies (default: `false`) |
+| `ForwardedHeadersSettings.TrustedProxies` | Array of trusted proxy IPs (e.g. `["10.0.0.1"]`). Only used when `Enabled: true` |
+| `ForwardedHeadersSettings.ForwardLimit` | Number of proxy hops to process from `X-Forwarded-For` (default: `1`). Set to `0` for unlimited (multi-proxy chains). Must match the actual number of trusted proxies in front of the API. |
+| `RateLimitSettings.AuthPermitLimit` | Max auth requests per IP per window (default `10`) |
+| `RateLimitSettings.AuthWindowMinutes` | Rate-limit window in minutes (default `1`) |
 | `CorsSettings.AllowedOrigins` | Allowed frontend origins in production |
 | `DefaultCategories` | Category list auto-assigned to every new user on registration |
-| `SwaggerSettings.Enabled` | Set to `true` to enable Swagger UI in non-Development environments |
+| `SwaggerSettings.Enabled` | Set to `true` to enable Swagger UI in non-Development environments (default: `false`) |
 
 > In **Development** mode CORS allows any origin. In **Production** only the origins listed in `CorsSettings.AllowedOrigins` are allowed.
 
@@ -293,7 +299,10 @@ Swagger is enabled automatically in the `Development` environment. In other envi
 
 - PostgreSQL and MySQL support concurrent multi-instance deployments safely. Admin invariants are enforced with Serializable transactions and automatic retry.
 - SQLite is suitable for single-instance or low-concurrency deployments only. It does not support concurrent writes from multiple processes.
-- The auth rate limiter allows 10 requests/minute per client IP and is process-local — each application instance maintains its own counters. For multi-instance deployments, use a shared store (Redis) or a gateway-level rate limiter instead.
+- The auth rate limiter is partitioned by client IP and is process-local — each application instance maintains its own counters. The limit is configurable via `RateLimitSettings:AuthPermitLimit` and `AuthWindowMinutes` (default: 10 requests/minute). For multi-instance deployments, use a shared store (Redis) or a gateway-level rate limiter instead.
+- **Reverse proxy / load balancer:** When the API runs behind a reverse proxy, set `ForwardedHeadersSettings:Enabled: true` and list the proxy IP(s) in `TrustedProxies`. This enables `X-Forwarded-For` processing so the rate limiter sees the real client IP instead of the proxy's IP. Only explicitly listed IPs are trusted — unlisted sources cannot spoof the header.
+  - **Single proxy (default):** `ForwardLimit: 1` (the default) processes exactly one hop from `X-Forwarded-For`. This is correct when a single trusted reverse proxy (e.g. nginx, Traefik) sits directly in front of the API.
+  - **Proxy chains / multiple load balancers:** If the request traverses more than one proxy before reaching the API (e.g. a CDN in front of a load balancer), increase `ForwardLimit` to match the number of hops, or set it to `0` for unlimited. Each proxy in the chain must be listed in `TrustedProxies`; otherwise `RemoteIpAddress` will reflect an inner proxy IP rather than the real client, causing the rate limiter to share a bucket across multiple clients.
 
 ## License
 
