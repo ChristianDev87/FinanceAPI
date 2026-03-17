@@ -184,7 +184,7 @@ When both `Authorization: Bearer` and `X-Api-Key` are present on the same reques
 | `Admin` | Automatically assigned to the first registered user; afterwards assignable by an existing Admin via `PUT /api/users/{id}` | Everything above + full user management |
 
 > Role and lock-status changes take effect immediately for both API key auth and JWT.
-> On every authenticated request the user's current role and active status are verified against the database. A locked account is rejected with 401 even if a valid JWT is still present. A role change (e.g. Admin → User) is reflected immediately without requiring a new login.
+> On every authenticated request the user's current role and active status are verified against the database. A locked account is rejected with 401 even if a valid JWT is still present. A role change (e.g. Admin → User) is reflected immediately without requiring a new login. A password change or admin password reset also invalidates all existing JWTs for that user immediately — the next request with an old token returns 401.
 
 ## Project Structure
 
@@ -196,7 +196,8 @@ FinanceAPI/
 │                       SqliteConnectionFactory, PostgreSqlConnectionFactory, MySqlConnectionFactory,
 │                       SqliteDialect, PostgreSqlDialect, MySqlDialect,
 │                       DatabaseInitializer, DateOnlyTypeHandler,
-│                       Migrations/{SQLite,PostgreSQL,MySQL}/V001__initial_schema.sql
+│                       Migrations/{SQLite,PostgreSQL,MySQL}/V001__initial_schema.sql,
+│                       Migrations/{SQLite,PostgreSQL,MySQL}/V002__password_version_apikey_constraint.sql
 ├── Domain/             UserRoles (Admin, User), TransactionTypes (income, expense)
 ├── DTOs/               Auth/, Users/, ApiKeys/, Categories/,
 │                       Transactions/, Statistics/, Profile/
@@ -292,7 +293,7 @@ Swagger is enabled automatically in the `Development` environment. In other envi
 
 - PostgreSQL and MySQL support concurrent multi-instance deployments safely. Admin invariants are enforced with Serializable transactions and automatic retry.
 - SQLite is suitable for single-instance or low-concurrency deployments only. It does not support concurrent writes from multiple processes.
-- The rate limiter (10 auth requests/minute/IP) is process-local. For multi-instance deployments, use a shared store (Redis) or a gateway-level rate limiter.
+- The auth rate limiter allows 10 requests/minute per client IP and is process-local — each application instance maintains its own counters. For multi-instance deployments, use a shared store (Redis) or a gateway-level rate limiter instead.
 
 ## License
 
