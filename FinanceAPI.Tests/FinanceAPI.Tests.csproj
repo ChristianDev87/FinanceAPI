@@ -31,17 +31,5 @@
         <ProjectReference Include="..\FinanceAPI\FinanceAPI.csproj"/>
     </ItemGroup>
 
-    <ItemGroup>
-        <!-- Copy schema files from the main project into the test output directory -->
-        <None Include="..\FinanceAPI\Database\schema.sql" Link="Database\schema.sql">
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-        </None>
-        <None Include="..\FinanceAPI\Database\schema.postgresql.sql" Link="Database\schema.postgresql.sql">
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-        </None>
-        <None Include="..\FinanceAPI\Database\schema.mysql.sql" Link="Database\schema.mysql.sql">
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-        </None>
-    </ItemGroup>
 
 </Project>
