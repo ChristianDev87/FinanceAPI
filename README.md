@@ -308,4 +308,7 @@ Swagger is enabled automatically in the `Development` environment. In other envi
 
 ## License
 
-MIT
+[PolyForm Noncommercial License 1.0.0](LICENSE)
+
+Free to use, modify, and distribute for non-commercial purposes.
+Commercial use requires explicit written permission from the author.
